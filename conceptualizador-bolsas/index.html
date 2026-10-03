@@ -265,6 +265,7 @@
         <div class="row"><span>Facebook</span><input type="text" id="c_fb" placeholder="TuMarca"></div>
         <div class="row"><span>Posición</span><input type="range" id="cPos" min="0" max="1000" step="1"><output id="cPosO"></output></div>
         <div class="row"><span>Tamaño</span><input type="range" id="cSize" min="40" max="250" value="100"><output id="cSizeO"></output></div>
+        <div class="row"><span>Rotación</span><input type="range" id="cRot" min="-180" max="180" value="0"><output id="cRotO"></output></div>
         <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
       </div>
     </section>
@@ -529,7 +530,7 @@
     palette: null, paletteDirty: true, dims: null,
     clientId: null, clientName: '', designN: null, dirty: false, logoId: null, logoName: '',
     texture: true,
-    contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0 },
+    contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, rot: 0 },
     cBox: null, editCorners: false,
   };
 
@@ -926,7 +927,7 @@
   function contactColor() { return S.ink; }
 
   // lays the strip out centred on (cx, cy); returns its bounding box (design space)
-  function drawContact(c, D) {
+  function drawContact(c, D, flat = false) {
     const items = contactItems();
     if (!S.contact.on || !items.length) return null;
     const fs = 22 * S.contact.scale, icon = fs * 1.15, gap = fs * 0.45, sep = fs * 0.9, lineH = fs * 2;
@@ -940,6 +941,8 @@
       if (row.length && (rw > maxW || row.length >= 3)) rows.push([it]); else row.push(it);
     }
     const col = contactColor(), cx = D.box.x + D.box.w / 2, cy = S.contact.y;
+    c.save();
+    if (S.contact.rot && !flat) { c.translate(cx, cy); c.rotate(S.contact.rot * Math.PI / 180); c.translate(-cx, -cy); }
     c.fillStyle = col; c.strokeStyle = col; c.textBaseline = 'middle';
     const top = cy - (rows.length * lineH) / 2;
     let bw = 0;
@@ -958,7 +961,15 @@
         x += width(it);
       });
     });
+    c.restore();
+    // unrotated box; contactCorners() gives the rotated outline
     return { x: cx - bw / 2 - 10, y: top - 6, w: bw + 20, h: rows.length * lineH + 12 };
+  }
+  function contactCorners() {
+    const b = S.cBox, a = (S.contact.rot || 0) * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    return [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]
+      .map(([x, y]) => [cx + (x - cx) * co - (y - cy) * si, cy + (x - cx) * si + (y - cy) * co]);
   }
 
   // ---------- compositing ----------
@@ -1005,7 +1016,7 @@
       boxes.push(bounds(logoCorners()));
     }
     S.cBox = drawContact(p, D);
-    if (S.cBox) boxes.push(S.cBox);
+    if (S.cBox) boxes.push(bounds(contactCorners()));
     if (!boxes.length) return null;
 
     let out = P;
@@ -1044,7 +1055,7 @@
     c.save();
     let pts = null;
     if (guide === 'logo' && S.proc) pts = logoCorners();
-    if (guide === 'contact' && S.cBox) { const b = S.cBox; pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]; }
+    if (guide === 'contact' && S.cBox) pts = contactCorners();
     if (pts) {
       pts = pts.map(p => toCanvasPt(...p));
       c.strokeStyle = '#f5c400'; c.lineWidth = 4; strokePoly(c, pts);
@@ -1195,6 +1206,7 @@
     $('posX').max = D.w; $('posX').value = Math.round(S.x); $('posXO').textContent = Math.round(S.x / D.w * 100) + '%';
     $('posY').max = D.h; $('posY').value = Math.round(S.y); $('posYO').textContent = Math.round(S.y / D.h * 100) + '%';
     $('cPos').max = D.h; $('cPos').value = Math.round(S.contact.y); $('cPosO').textContent = Math.round(S.contact.y / D.h * 100) + '%';
+    $('cRot').value = S.contact.rot || 0; $('cRotO').textContent = (S.contact.rot || 0) + '°';
   }
 
   // drawn templates with live thumbnails
@@ -1409,6 +1421,7 @@
   $('cOn').onchange = e => { S.contact.on = e.target.checked; if (S.contact.on) showGuide('contact'); update(); };
   CONTACT_KEYS.forEach(k => { $('c_' + k).oninput = e => { S.contact[k] = e.target.value; update(); }; });
   $('cSize').oninput = e => { S.contact.scale = e.target.value / 100; showGuide('contact'); liveUpdate(); };
+  $('cRot').oninput = e => { S.contact.rot = +e.target.value; showGuide('contact'); liveUpdate(); };
   $('cLines').onchange = e => { S.contact.lines = e.target.checked; update(); };
 
   $('editCorners').onclick = () => {
@@ -1442,7 +1455,12 @@
     const lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
     return Math.abs(lx) <= S.w / 2 + 10 && Math.abs(ly) <= logoHeight() / 2 + 10;
   }
-  const hitContact = (dx, dy) => S.cBox && dx >= S.cBox.x && dx <= S.cBox.x + S.cBox.w && dy >= S.cBox.y && dy <= S.cBox.y + S.cBox.h;
+  function hitContact(dx, dy) {
+    if (!S.cBox) return false;
+    const b = S.cBox, cx = b.x + b.w / 2, cy = b.y + b.h / 2, a = -(S.contact.rot || 0) * Math.PI / 180;
+    const x = dx - cx, y = dy - cy, lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
+    return Math.abs(lx) <= b.w / 2 && Math.abs(ly) <= b.h / 2;
+  }
 
   cv.tabIndex = 0;
   const touches = new Map();   // active fingers on the canvas (canvas coords)
@@ -1458,7 +1476,7 @@
       cv.setPointerCapture(e.pointerId);
       const target = drag && drag.target === 'contact' ? 'contact' : S.proc ? 'logo' : 'contact';
       const { d, ang } = pinchInfo();
-      drag = { pinch: true, target, d0: d, a0: ang, w0: S.w, rot0: S.rot, s0: S.contact.scale };
+      drag = { pinch: true, target, d0: d, a0: ang, w0: S.w, rot0: S.rot, s0: S.contact.scale, cr0: S.contact.rot || 0 };
       guide = target; showUI = true; clearTimeout(uiTimer); render();
       return;
     }
@@ -1489,7 +1507,10 @@
       if (drag.target === 'logo') {
         S.w = clamp(drag.w0 * k, 20, design().w * 1.5);
         S.rot = Math.round(((drag.rot0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
-      } else S.contact.scale = clamp(drag.s0 * k, 0.4, 2.5);
+      } else {
+        S.contact.scale = clamp(drag.s0 * k, 0.4, 2.5);
+        S.contact.rot = Math.round(((drag.cr0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
+      }
       liveUpdate(); return;
     }
     if (drag.corner !== undefined) {
@@ -1562,7 +1583,10 @@
       const b = bounds(logoCorners());
       lines.push(`<b>Logo:</b> ${cm(b.w * k)} × ${cm(b.h * k)} cm · a ${cm((b.y - face.y) * k)} cm del borde superior`);
     }
-    if (S.cBox) lines.push(`<b>Franja:</b> ${cm(S.cBox.w * k)} × ${cm(S.cBox.h * k)} cm · a ${cm((face.y + face.h - S.cBox.y - S.cBox.h) * k)} cm del borde inferior`);
+    if (S.cBox) {
+      const rb = bounds(contactCorners());
+      lines.push(`<b>Franja:</b> ${cm(S.cBox.w * k)} × ${cm(S.cBox.h * k)} cm${S.contact.rot ? ` · girada ${S.contact.rot}°` : ''} · a ${cm((face.y + face.h - rb.y - rb.h) * k)} cm del borde inferior`);
+    }
     box.innerHTML = lines.join('<br>');
   }
 
@@ -1646,10 +1670,10 @@
     if (S.cBox) {
       // contact strip rendered big and vectorised, so it matches the mockup exactly
       const b = S.cBox, z = 4, c = newCanvas(Math.ceil(b.w * z), Math.ceil(b.h * z)), x = c.getContext('2d');
-      x.scale(z, z); x.translate(-b.x, -b.y); drawContact(x, design());
+      x.scale(z, z); x.translate(-b.x, -b.y); drawContact(x, design(), true);
       const t = traceMask(c);
       if (t) add('Tinta_1', `Tinta 1 ${inkName(S.ink)}`, S.ink,
-        `<g id="Franja_contacto" transform="translate(${r2((b.x - face.x) * k)} ${r2((b.y - face.y) * k)}) scale(${r2(k / z * t.scale)})"><path fill-rule="evenodd" d="${t.d}"/></g>`);
+        `<g id="Franja_contacto" transform="translate(${r2((b.x + b.w / 2 - face.x) * k)} ${r2((b.y + b.h / 2 - face.y) * k)}) rotate(${r2(S.contact.rot || 0)}) translate(${r2(-b.w / 2 * k)} ${r2(-b.h / 2 * k)}) scale(${r2(k / z * t.scale)})"><path fill-rule="evenodd" d="${t.d}"/></g>`);
     }
     const client = S.clientName;
     const model = S.model !== null ? MODELOS[S.model].nombre : TEMPLATES[S.template] ? TEMPLATES[S.template].name : '';
@@ -1813,7 +1837,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       mode: 'ink', thr: 35, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
       texture: true, clip: true, ink2Auto: true,
     });
-    S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0 };
+    S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, rot: 0 };
     // same client, same contact details: start from the last version's strip
     if (S.clientId) {
       const last = (await designsOf(S.clientId)).sort((a, b) => b.n - a.n)[0];
@@ -1849,7 +1873,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     }
     ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'removeBg', 'invert', 'texture']
       .forEach(k => { if (st[k] !== undefined) S[k] = st[k]; });
-    S.contact = { ...S.contact, ...st.contact };
+    S.contact = { ...S.contact, ...st.contact, rot: st.contact.rot || 0 };
     S.palette = st.palette || null; S.paletteDirty = !st.palette;
     processLogo();
     S.designN = d.n;
