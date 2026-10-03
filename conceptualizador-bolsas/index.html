@@ -1,0 +1,1507 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Conceptualizador de Bolsas</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#b4441a">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bolsas">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  :root {
+    --bg: #f3f1ec; --panel: #ffffff; --text: #1f1d1a; --muted: #6b665d;
+    --line: #e2ddd3; --accent: #b4441a; --accent-soft: #fbe9df;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text);
+    height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  header { padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  header input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; width: 200px; }
+  main { flex: 1; min-height: 0; width: 100%; display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
+  /* only the options panel scrolls; the preview stays in view */
+  aside { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; min-height: 0; }
+  aside > section { flex-shrink: 0; }
+  h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin: 0 0 10px; }
+  .templates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .tpl { border: 2px solid var(--line); border-radius: 10px; background: #faf9f6; padding: 4px; cursor: pointer; font: inherit; font-size: 11px; line-height: 1.2; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+  .tpl canvas { width: 100%; aspect-ratio: 1; }
+  .tpl.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+  .tpl img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+  .subh { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
+  .sw.on { box-shadow: 0 0 0 2px var(--accent); }
+  .palette { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .chip { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 6px 4px; min-width: 54px; border: 2px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; font-size: 11px; color: var(--muted); }
+  .chip i { width: 26px; height: 26px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+  .chip.role-ink, .chip.role-ink2 { border-color: var(--accent); color: var(--text); font-weight: 600; }
+  .chip.role-trama { border-color: var(--accent); border-style: dashed; color: var(--text); }
+  .chip.role-paper i { opacity: .35; }
+  input[type=color] { width: 34px; height: 30px; border: 1px solid var(--line); border-radius: 6px; padding: 1px; background: #fff; cursor: pointer; }
+  .row { display: flex; align-items: center; gap: 10px; font-size: 13px; margin-bottom: 8px; }
+  .row > span:first-child { width: 72px; color: var(--muted); flex-shrink: 0; }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); }
+  .row output { width: 42px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; }
+  .row select, .row input[type=text] { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+  .check { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-bottom: 8px; cursor: pointer; }
+  .check input { accent-color: var(--accent); }
+  .btn { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.on { background: var(--accent-soft); border-color: var(--accent); }
+  .link { background: none; border: none; padding: 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; }
+  .file { display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; font-size: 13px; color: var(--muted); cursor: pointer; }
+  .file:hover { border-color: var(--accent); color: var(--text); }
+  .file input { display: none; }
+  .btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 0; }
+  #cv { width: auto; height: auto; max-width: 100%; max-height: calc(100vh - 150px); border-radius: 12px; touch-action: none; cursor: grab; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; }
+  .hint-touch { display: none; }
+  @media (pointer: coarse) { .hint-touch { display: inline; } .hint-desk { display: none; } }
+  .sizeinfo { font-size: 13px; background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; margin: 4px 0 10px; line-height: 1.5; }
+  .sizeinfo:empty { display: none; }
+  .note { font-size: 12px; color: var(--muted); margin: 4px 0 8px; }
+  .hidden { display: none !important; }
+  .sub { padding-left: 24px; }
+  @media (max-width: 860px) {
+    /* phone: the page scrolls, but the preview sticks to the top while you fill the options */
+    body { height: auto; display: block; overflow: visible; }
+    main { display: flex; flex-direction: column; padding: 0 12px 12px; }
+    .stage { order: -1; position: sticky; top: 0; z-index: 5; background: var(--bg); padding: 8px 0; margin-bottom: 8px; }
+    #cv { max-height: 42vh; }
+    .hint { font-size: 11px; }
+    .hint-desk { display: none; }
+    aside { overflow: visible; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+    header { padding-top: calc(12px + env(safe-area-inset-top)); }
+    header h1 { font-size: 16px; }
+    /* iPhone zooms into any field with text smaller than 16px */
+    input, select, header input, .row select, .row input[type=text] { font-size: 16px; }
+    .btn { padding: 11px 14px; font-size: 14px; }
+    .sw { width: 34px; height: 34px; }
+    .row input[type=range] { height: 28px; }
+    .check { font-size: 14px; padding: 4px 0; }
+    .check input { width: 20px; height: 20px; }
+    header { padding: 12px 16px; }
+    header input { width: 100%; }
+    header label { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Conceptualizador de Bolsas</h1>
+  <label>Cliente <input id="client" placeholder="Nombre del cliente"></label>
+</header>
+
+<main>
+  <aside>
+    <section>
+      <h2>1 · Modelo de bolsa</h2>
+      <div id="misModelosBox" class="hidden">
+        <div class="subh">Mis modelos</div>
+        <div class="templates" id="misModelos"></div>
+        <div class="btns" id="cornerBtns" style="margin-top:8px">
+          <button class="btn" id="editCorners">Ajustar esquinas del frente</button>
+          <button class="link hidden" id="saveCorners">Descargar ajustes (areas.json)</button>
+        </div>
+        <div class="subh" style="margin-top:12px">Plantillas dibujadas</div>
+      </div>
+      <div class="templates" id="templates"></div>
+      <label class="file" id="photoBox" style="margin-top:8px">
+        <input type="file" id="photoFile" accept="image/*">
+        <span id="photoLabel">…o sube otra foto de bolsa</span>
+      </label>
+    </section>
+
+    <section id="colorSec">
+      <h2>2 · Color de la bolsa</h2>
+      <div class="swatches" id="swatches"></div>
+    </section>
+
+    <section>
+      <h2>3 · Logo del cliente</h2>
+      <label class="file">
+        <input type="file" id="logoFile" accept="image/*">
+        <span id="logoLabel">Subir logo (PNG, JPG, captura…)<br><small>o arrástralo sobre la bolsa</small></span>
+      </label>
+    </section>
+
+    <section id="logoCtl" class="hidden">
+      <h2>4 · Ajustes del logo</h2>
+      <div class="row"><span>Impresión</span>
+        <select id="mode">
+          <option value="ink">1 tinta</option>
+          <option value="ink2">2 tintas</option>
+          <option value="color">Colores originales</option>
+        </select>
+      </div>
+      <div id="palRow">
+        <div class="subh" style="margin:2px 0 6px">Colores del logo · toca cada uno para elegir cómo se imprime</div>
+        <div class="palette" id="palette"></div>
+      </div>
+      <div class="row" id="inkRow"><span>Tinta</span><div class="swatches" id="inks"></div></div>
+      <div class="row" id="ink2Row"><span>Tinta 2</span><div class="swatches" id="inks2"></div></div>
+      <div class="row" id="thrRow"><span>Limpieza</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrO"></output></div>
+      <div class="note" id="thrNote">Si el logo sale con manchas o le falta detalle, mueve “Limpieza”.</div>
+      <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo del logo</label>
+      <label class="check" id="invertRow"><input type="checkbox" id="invert"> Invertir (imprimir el fondo en vez del logo)</label>
+      <div class="row"><span>Tamaño</span><input type="range" id="size" min="20" max="1000"><output id="sizeO"></output></div>
+      <div class="row"><span>Rotación</span><input type="range" id="rot" min="-180" max="180" value="0"><output id="rotO"></output></div>
+      <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
+      <div class="row"><span>Acabado</span>
+        <select id="blend">
+          <option value="source-over">Normal (serigrafía sólida)</option>
+          <option value="multiply">Impreso (se funde con el papel)</option>
+          <option value="screen">Claro sobre oscuro</option>
+        </select>
+      </div>
+      <label class="check" id="texRow"><input type="checkbox" id="texture" checked> Textura realista (la tinta toma los pliegues de la foto)</label>
+      <label class="check" id="clipRow"><input type="checkbox" id="clip" checked> Recortar logo al área de la bolsa</label>
+      <div class="btns">
+        <button class="btn" id="center">Centrar</button>
+        <button class="btn" id="fit">Tamaño sugerido</button>
+        <button class="btn" id="rot0">Rotación 0°</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>5 · Franja de contacto</h2>
+      <label class="check"><input type="checkbox" id="cOn"> Agregar franja de contacto</label>
+      <div id="cCtl" class="hidden">
+        <div class="row"><span>Instagram</span><input type="text" id="c_ig" placeholder="@tumarca"></div>
+        <div class="row"><span>WhatsApp</span><input type="text" id="c_wa" placeholder="+56 9 1234 5678"></div>
+        <div class="row"><span>Web</span><input type="text" id="c_web" placeholder="www.tumarca.cl"></div>
+        <div class="row"><span>Dirección</span><input type="text" id="c_dir" placeholder="Calle 123, Ciudad"></div>
+        <div class="row"><span>Correo</span><input type="text" id="c_mail" placeholder="hola@tumarca.cl"></div>
+        <div class="row"><span>Facebook</span><input type="text" id="c_fb" placeholder="TuMarca"></div>
+        <div class="row"><span>Tamaño</span><input type="range" id="cSize" min="40" max="250" value="100"><output id="cSizeO"></output></div>
+        <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
+      </div>
+    </section>
+
+    <section>
+      <h2>6 · Medidas y archivo de impresión</h2>
+      <div class="note" style="margin-top:0">Medidas del <b>frente</b> de la bolsa (sin el fuelle):</div>
+      <div class="row"><span>Ancho</span><input type="text" inputmode="decimal" id="dimW" placeholder="ej. 32"><span style="width:auto">cm</span></div>
+      <div class="row"><span>Alto</span><input type="text" inputmode="decimal" id="dimH" placeholder="ej. 41"><span style="width:auto">cm</span></div>
+      <div class="sizeinfo" id="sizeInfo"></div>
+      <button class="btn" id="exportSvg" style="width:100%">Descargar archivo de impresión (SVG)</button>
+      <div class="note">Ábrelo en CorelDRAW con <b>Archivo › Importar</b>: viene a tamaño real en mm, con cada tinta vectorizada en su propio grupo.</div>
+    </section>
+
+    <section class="btns">
+      <button class="btn primary" id="export" style="flex:1">Descargar mockup (PNG)</button>
+      <button class="btn primary hidden" id="share" style="flex:1">Compartir</button>
+    </section>
+  </aside>
+
+  <div class="stage">
+    <canvas id="cv" width="1000" height="1000"></canvas>
+    <div class="hint" id="hint"></div>
+  </div>
+</main>
+
+<script src="modelos.js"></script>
+<script src="lib/imagetracer.js"></script>
+<script>
+(() => {
+  // ---------- helpers ----------
+  const $ = id => document.getElementById(id);
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function hexToRgb(h) {
+    h = h.replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  // amt < 0 darkens toward black, amt > 0 lightens toward white
+  function mix(hex, amt) {
+    const [r, g, b] = hexToRgb(hex);
+    const t = amt < 0 ? 0 : 255, k = Math.abs(amt);
+    const f = c => Math.round(c + (t - c) * k);
+    return `rgb(${f(r)},${f(g)},${f(b)})`;
+  }
+  function luminance(hex) {
+    const [r, g, b] = hexToRgb(hex);
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+  function roundRect(p, x, y, w, h, r) {
+    p.moveTo(x + r, y); p.lineTo(x + w - r, y); p.quadraticCurveTo(x + w, y, x + w, y + r);
+    p.lineTo(x + w, y + h - r); p.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    p.lineTo(x + r, y + h); p.quadraticCurveTo(x, y + h, x, y + h - r);
+    p.lineTo(x, y + r); p.quadraticCurveTo(x, y, x + r, y); p.closePath();
+  }
+
+  const noise = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 180;
+    const x = c.getContext('2d'); const d = x.createImageData(180, 180);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const v = Math.random() * 255;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255;
+    }
+    x.putImageData(d, 0, 0); return c;
+  })();
+  const weave = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 6;
+    const x = c.getContext('2d');
+    x.fillStyle = '#808080'; x.fillRect(0, 0, 6, 6);
+    x.fillStyle = '#9a9a9a'; x.fillRect(0, 0, 3, 3); x.fillRect(3, 3, 3, 3);
+    x.fillStyle = '#666'; x.fillRect(3, 0, 3, 1); x.fillRect(0, 3, 3, 1);
+    return c;
+  })();
+
+  function texture(ctx, img, alpha, mode = 'overlay') {
+    ctx.save();
+    ctx.globalAlpha = alpha; ctx.globalCompositeOperation = mode;
+    ctx.fillStyle = ctx.createPattern(img, 'repeat');
+    ctx.fillRect(0, 0, 1000, 1000);
+    ctx.restore();
+  }
+  function groundShadow(ctx, cx, cy, rx) {
+    ctx.save();
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rx);
+    g.addColorStop(0, 'rgba(0,0,0,.28)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.translate(cx, cy); ctx.scale(1, 0.09); ctx.translate(-cx, -cy);
+    ctx.beginPath(); ctx.arc(cx, cy, rx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  function hGrad(ctx, x0, x1, stops) {
+    const g = ctx.createLinearGradient(x0, 0, x1, 0);
+    stops.forEach(([o, c]) => g.addColorStop(o, c)); return g;
+  }
+  function vGrad(ctx, y0, y1, stops) {
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
+    stops.forEach(([o, c]) => g.addColorStop(o, c)); return g;
+  }
+
+  // ---------- bag templates (drawn on a 1000x1000 canvas) ----------
+  const TEMPLATES = {
+    tote: {
+      name: 'Tela / Tote', color: '#ece4d0',
+      area: { x: 300, y: 420, w: 400, h: 400 },
+      face() {
+        const p = new Path2D();
+        p.moveTo(230, 320); p.lineTo(770, 320);
+        p.quadraticCurveTo(786, 600, 776, 880); p.quadraticCurveTo(776, 905, 750, 905);
+        p.lineTo(250, 905); p.quadraticCurveTo(224, 905, 224, 880);
+        p.quadraticCurveTo(214, 600, 230, 320); p.closePath();
+        return p;
+      },
+      back(ctx, c) {
+        groundShadow(ctx, 500, 912, 330);
+        ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = mix(c, -0.28); ctx.lineWidth = 30;
+        ctx.beginPath(); ctx.moveTo(405, 330); ctx.bezierCurveTo(400, 105, 600, 105, 595, 330); ctx.stroke();
+        ctx.restore();
+      },
+      shade(ctx, c) {
+        ctx.fillStyle = hGrad(ctx, 214, 786, [[0, 'rgba(0,0,0,.20)'], [.1, 'rgba(0,0,0,.05)'], [.45, 'rgba(255,255,255,.07)'], [.85, 'rgba(0,0,0,.05)'], [1, 'rgba(0,0,0,.24)']]);
+        ctx.fillRect(0, 0, 1000, 1000);
+        ctx.fillStyle = vGrad(ctx, 320, 905, [[0, 'rgba(0,0,0,.12)'], [.08, 'rgba(0,0,0,0)'], [.85, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.12)']]);
+        ctx.fillRect(0, 0, 1000, 1000);
+        // soft fabric folds
+        [[330, 0.05], [610, 0.06], [690, 0.04]].forEach(([x, a]) => {
+          ctx.fillStyle = hGrad(ctx, x - 40, x + 40, [[0, 'rgba(0,0,0,0)'], [.5, `rgba(0,0,0,${a})`], [1, 'rgba(0,0,0,0)']]);
+          ctx.fillRect(x - 40, 320, 80, 600);
+        });
+        texture(ctx, weave, 0.35);
+        texture(ctx, noise, 0.10);
+        // top hem stitching
+        ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.22)'; ctx.lineWidth = 2; ctx.setLineDash([9, 7]);
+        ctx.beginPath(); ctx.moveTo(234, 352); ctx.lineTo(768, 352); ctx.stroke();
+        ctx.restore();
+        ctx.fillStyle = 'rgba(0,0,0,.10)'; ctx.fillRect(220, 320, 560, 4);
+      },
+      front(ctx, c) {
+        const hc = mix(c, -0.06);
+        ctx.save(); ctx.lineCap = 'butt'; ctx.strokeStyle = hc; ctx.lineWidth = 34;
+        ctx.beginPath(); ctx.moveTo(360, 340); ctx.bezierCurveTo(350, 60, 650, 60, 640, 340); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 34; ctx.setLineDash([]);
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.strokeStyle = hGrad(ctx, 340, 660, [[0, 'rgba(0,0,0,.25)'], [.5, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.25)']]);
+        ctx.beginPath(); ctx.moveTo(360, 340); ctx.bezierCurveTo(350, 60, 650, 60, 640, 340); ctx.stroke();
+        ctx.restore();
+        // attachment patches with box-X stitch
+        [343, 623].forEach(x => {
+          ctx.fillStyle = hc; ctx.fillRect(x, 320, 34, 62);
+          ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+          ctx.strokeRect(x + 5, 330, 24, 44);
+          ctx.beginPath(); ctx.moveTo(x + 5, 330); ctx.lineTo(x + 29, 374); ctx.moveTo(x + 29, 330); ctx.lineTo(x + 5, 374); ctx.stroke();
+          ctx.restore();
+        });
+      },
+    },
+
+    kraft: {
+      name: 'Papel kraft', color: '#c49a6c',
+      area: { x: 290, y: 400, w: 370, h: 400 },
+      face() {
+        const p = new Path2D(); p.rect(250, 290, 450, 610); return p;
+      },
+      back(ctx, c) {
+        groundShadow(ctx, 520, 905, 330);
+        // back twisted handle
+        ctx.save(); ctx.lineCap = 'round'; ctx.strokeStyle = mix(c, -0.35); ctx.lineWidth = 12;
+        ctx.beginPath(); ctx.moveTo(420, 300); ctx.bezierCurveTo(410, 120, 590, 120, 580, 300); ctx.stroke();
+        ctx.restore();
+        // side gusset
+        ctx.fillStyle = mix(c, -0.2);
+        ctx.beginPath(); ctx.moveTo(700, 290); ctx.lineTo(790, 304); ctx.lineTo(790, 886); ctx.lineTo(700, 900); ctx.closePath(); ctx.fill();
+        ctx.save(); ctx.strokeStyle = mix(c, -0.34); ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(745, 297); ctx.lineTo(745, 845); ctx.lineTo(700, 900); ctx.moveTo(745, 845); ctx.lineTo(790, 886); ctx.stroke();
+        ctx.fillStyle = 'rgba(0,0,0,.08)';
+        ctx.beginPath(); ctx.moveTo(745, 297); ctx.lineTo(790, 304); ctx.lineTo(790, 886); ctx.lineTo(745, 845); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      },
+      shade(ctx, c) {
+        ctx.fillStyle = hGrad(ctx, 250, 700, [[0, 'rgba(255,255,255,.10)'], [.5, 'rgba(255,255,255,0)'], [1, 'rgba(0,0,0,.12)']]);
+        ctx.fillRect(0, 0, 1000, 1000);
+        ctx.fillStyle = vGrad(ctx, 290, 900, [[0, 'rgba(0,0,0,.04)'], [.9, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.10)']]);
+        ctx.fillRect(0, 0, 1000, 1000);
+        // top fold band
+        ctx.fillStyle = 'rgba(0,0,0,.06)'; ctx.fillRect(250, 290, 450, 48);
+        ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(250, 337, 450, 2);
+        ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fillRect(250, 339, 450, 2);
+        // bottom fold
+        ctx.fillStyle = 'rgba(0,0,0,.06)'; ctx.fillRect(250, 845, 450, 2);
+        texture(ctx, noise, 0.16);
+      },
+      front(ctx, c) {
+        const hc = mix(c, -0.12);
+        const rope = () => { ctx.beginPath(); ctx.moveTo(390, 325); ctx.bezierCurveTo(375, 95, 575, 95, 560, 325); ctx.stroke(); };
+        ctx.save(); ctx.lineCap = 'round';
+        ctx.strokeStyle = hc; ctx.lineWidth = 14; rope();
+        ctx.strokeStyle = mix(c, -0.32); ctx.lineWidth = 14; ctx.setLineDash([3, 7]); rope();
+        ctx.restore();
+        // glued reinforcement patches
+        [372, 542].forEach(x => { ctx.fillStyle = 'rgba(0,0,0,.08)'; ctx.fillRect(x, 300, 36, 34); });
+        ctx.fillStyle = hc;
+        [390, 560].forEach(x => { ctx.beginPath(); ctx.arc(x, 322, 9, 0, Math.PI * 2); ctx.fill(); });
+      },
+    },
+
+    diecut: {
+      name: 'Troquelada', color: '#f5f5f5', evenodd: true,
+      area: { x: 300, y: 340, w: 400, h: 480 },
+      face() {
+        const p = new Path2D();
+        roundRect(p, 240, 150, 520, 750, 14);
+        roundRect(p, 415, 205, 170, 58, 29);
+        return p;
+      },
+      back(ctx) { groundShadow(ctx, 500, 905, 320); },
+      shade(ctx, c) {
+        ctx.fillStyle = hGrad(ctx, 240, 760, [[0, 'rgba(0,0,0,.12)'], [.08, 'rgba(0,0,0,0)'], [.92, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,.14)']]);
+        ctx.fillRect(0, 0, 1000, 1000);
+        // glossy diagonal sheen
+        ctx.save(); ctx.translate(500, 520); ctx.rotate(-0.5);
+        ctx.fillStyle = hGrad(ctx, -260, 260, [[0, 'rgba(255,255,255,0)'], [.3, 'rgba(255,255,255,.16)'], [.36, 'rgba(255,255,255,0)'], [.62, 'rgba(255,255,255,0)'], [.68, 'rgba(255,255,255,.10)'], [.74, 'rgba(255,255,255,0)']]);
+        ctx.fillRect(-600, -600, 1200, 1200);
+        ctx.restore();
+        // handle reinforcement patch
+        const patch = new Path2D(); roundRect(patch, 385, 185, 230, 98, 20);
+        ctx.fillStyle = 'rgba(0,0,0,.05)'; ctx.fill(patch);
+        ctx.strokeStyle = 'rgba(0,0,0,.10)'; ctx.lineWidth = 2; ctx.stroke(patch);
+        // side + bottom seams
+        ctx.fillStyle = 'rgba(0,0,0,.08)';
+        ctx.fillRect(252, 150, 2, 750); ctx.fillRect(746, 150, 2, 750); ctx.fillRect(240, 880, 520, 2);
+        texture(ctx, noise, 0.06);
+      },
+      front(ctx, c) {
+        const hole = new Path2D(); roundRect(hole, 415, 205, 170, 58, 29);
+        ctx.strokeStyle = mix(c, -0.25); ctx.lineWidth = 3; ctx.stroke(hole);
+      },
+    },
+  };
+
+  const SWATCHES = [
+    ['Blanco', '#f5f5f5'], ['Natural', '#ece4d0'], ['Kraft', '#c49a6c'], ['Negro', '#222222'],
+    ['Azul marino', '#1f2f4f'], ['Rojo', '#b3262b'], ['Verde', '#2f6b45'], ['Gris', '#8a8a8a'],
+  ];
+
+  const BLACK = '#111111', WHITE = '#f7f7f5';
+  const INKS = [
+    ['Negro', BLACK], ['Blanco', WHITE], ['Dorado', '#c8a24c'], ['Plateado', '#b9bcc0'],
+    ['Rojo', '#b3262b'], ['Rosado', '#f2a0b8'], ['Azul', '#1f3f7a'],
+  ];
+  const MODELOS = Array.isArray(window.MODELOS) ? window.MODELOS : [];
+
+  // ---------- state ----------
+  // Logo and contact strip live in "design space": a flat, front-facing version of the bag's face.
+  // With a model photo, design space is warped onto the 4 corners of the bag front (perspective).
+  const S = {
+    template: 'tote', bagColor: TEMPLATES.tote.color, photo: null,
+    model: null, quadFrac: null, quad: null, H: null, Hinv: null, detail: null,
+    logo: null, proc: null,
+    x: 500, y: 610, w: 300, rot: 0, opacity: 1, blend: 'source-over', clip: true,
+    mode: 'ink', ink: BLACK, ink2: '#f2a0b8', ink2Auto: true, thr: 35, removeBg: true, invert: false,
+    palette: null, paletteDirty: true, dims: null,
+    texture: true,
+    contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0 },
+    cBox: null, editCorners: false,
+  };
+
+  const cv = $('cv'), ctx = cv.getContext('2d');
+  const newCanvas = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; };
+
+  function bg(ctx, w, h) {
+    ctx.fillStyle = vGrad(ctx, 0, h, [[0, '#f7f6f3'], [1, '#e7e4dd']]);
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawBag(ctx, key, color, drawContent) {
+    const t = TEMPLATES[key];
+    const face = t.face(), rule = t.evenodd ? 'evenodd' : 'nonzero';
+    t.back(ctx, color);
+    ctx.fillStyle = color; ctx.fill(face, rule);
+    ctx.save(); ctx.clip(face, rule);
+    if (drawContent) drawContent();
+    ctx.restore();
+    ctx.save(); ctx.clip(face, rule); t.shade(ctx, color); ctx.restore();
+    t.front(ctx, color);
+  }
+
+  // ---------- perspective (homography) ----------
+  function solve(A, b) {
+    const n = b.length;
+    for (let i = 0; i < n; i++) {
+      let p = i;
+      for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+      [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
+      for (let r = i + 1; r < n; r++) {
+        const f = A[r][i] / A[i][i];
+        for (let c = i; c < n; c++) A[r][c] -= f * A[i][c];
+        b[r] -= f * b[i];
+      }
+    }
+    const x = new Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      let s = b[i];
+      for (let c = i + 1; c < n; c++) s -= A[i][c] * x[c];
+      x[i] = s / A[i][i];
+    }
+    return x;
+  }
+  function homography(src, dst) {
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+    }
+    return [...solve(A, b), 1];
+  }
+  function project(H, x, y) {
+    const w = H[6] * x + H[7] * y + H[8];
+    return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w];
+  }
+
+  // draws one triangle of `img` (source coords s*) into `c` at destination coords d*
+  function drawTri(c, img, s0, s1, s2, d0, d1, d2, sr) {
+    const den = (s1[0] - s0[0]) * (s2[1] - s0[1]) - (s2[0] - s0[0]) * (s1[1] - s0[1]);
+    if (!den) return;
+    const a = ((d1[0] - d0[0]) * (s2[1] - s0[1]) - (d2[0] - d0[0]) * (s1[1] - s0[1])) / den;
+    const b = ((d1[1] - d0[1]) * (s2[1] - s0[1]) - (d2[1] - d0[1]) * (s1[1] - s0[1])) / den;
+    const cc = ((d2[0] - d0[0]) * (s1[0] - s0[0]) - (d1[0] - d0[0]) * (s2[0] - s0[0])) / den;
+    const d = ((d2[1] - d0[1]) * (s1[0] - s0[0]) - (d1[1] - d0[1]) * (s2[0] - s0[0])) / den;
+    const e = d0[0] - a * s0[0] - cc * s0[1], f = d0[1] - b * s0[0] - d * s0[1];
+    // grow the clip triangle a hair so neighbouring triangles don't leave hairline seams
+    const mx = (d0[0] + d1[0] + d2[0]) / 3, my = (d0[1] + d1[1] + d2[1]) / 3;
+    const grow = p => { const dx = p[0] - mx, dy = p[1] - my, l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * 0.8, p[1] + dy / l * 0.8]; };
+    const g0 = grow(d0), g1 = grow(d1), g2 = grow(d2);
+    c.save();
+    c.beginPath(); c.moveTo(g0[0], g0[1]); c.lineTo(g1[0], g1[1]); c.lineTo(g2[0], g2[1]); c.closePath(); c.clip();
+    c.setTransform(a, b, cc, d, e, f);
+    c.drawImage(img, sr[0], sr[1], sr[2], sr[3], sr[0], sr[1], sr[2], sr[3]);
+    c.restore();
+  }
+  function warp(img, c, H, box) {
+    const N = 16, cw = img.width / N, ch = img.height / N;
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const x0 = i * cw, y0 = j * ch, x1 = x0 + cw, y1 = y0 + ch;
+      if (box && (x1 < box.x || x0 > box.x + box.w || y1 < box.y || y0 > box.y + box.h)) continue;
+      const p00 = project(H, x0, y0), p10 = project(H, x1, y0), p11 = project(H, x1, y1), p01 = project(H, x0, y1);
+      const sx = Math.max(0, x0 - 2), sy = Math.max(0, y0 - 2);
+      const sr = [sx, sy, Math.min(img.width, x1 + 2) - sx, Math.min(img.height, y1 + 2) - sy];
+      drawTri(c, img, [x0, y0], [x1, y0], [x1, y1], p00, p10, p11, sr);
+      drawTri(c, img, [x0, y0], [x1, y1], [x0, y1], p00, p11, p01, sr);
+    }
+  }
+
+  // ---------- design space ----------
+  function design() {
+    if (S.quad) {
+      const [a, b, c, d] = S.quad, dist = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+      const ar = S.dims ? S.dims.h / S.dims.w : ((dist(a, d) + dist(b, c)) / 2) / ((dist(a, b) + dist(d, c)) / 2);
+      const w = 1000, h = Math.round(1000 * ar), m = 70;
+      return { w, h, box: { x: m, y: m, w: w - 2 * m, h: h - 2 * m }, quad: true };
+    }
+    if (S.photo) {
+      const w = cv.width, h = cv.height;
+      return { w, h, box: { x: w * 0.3, y: h * 0.3, w: w * 0.4, h: h * 0.4 } };
+    }
+    return { w: 1000, h: 1000, box: TEMPLATES[S.template].area };
+  }
+  function setQuad(frac) {
+    S.quadFrac = frac;
+    if (!frac) { S.quad = S.H = S.Hinv = null; return; }
+    S.quad = frac.map(([x, y]) => [x * cv.width, y * cv.height]);
+    const D = design(), rect = [[0, 0], [D.w, 0], [D.w, D.h], [0, D.h]];
+    S.H = homography(rect, S.quad); S.Hinv = homography(S.quad, rect);
+  }
+  const toCanvasPt = (x, y) => S.H ? project(S.H, x, y) : [x, y];
+  const toDesignPt = (x, y) => S.Hinv ? project(S.Hinv, x, y) : [x, y];
+
+  // ---------- photo texture ----------
+  // two maps from the bag photo: "shade" (multiply: folds/shadows darken light ink)
+  // and "light" (screen: paper sheen shows through dark ink)
+  // `region` = where the print goes: brightness is measured there, not over the whole photo (wall, table…)
+  function buildDetail(img, region) {
+    const w = cv.width, h = cv.height;
+    const full = newCanvas(w, h), fx = full.getContext('2d'); fx.drawImage(img, 0, 0, w, h);
+    // cheap blur: shrink then stretch back (works on every browser, incl. older Safari)
+    const small = newCanvas(Math.ceil(w / 24), Math.ceil(h / 24));
+    small.getContext('2d').drawImage(img, 0, 0, small.width, small.height);
+    const blur = newCanvas(w, h), bx = blur.getContext('2d'); bx.imageSmoothingQuality = 'high'; bx.drawImage(small, 0, 0, w, h);
+    const fd = fx.getImageData(0, 0, w, h), q = bx.getImageData(0, 0, w, h).data, p = fd.data;
+    const lum = (a, i) => 0.299 * a[i] + 0.587 * a[i + 1] + 0.114 * a[i + 2];
+    let sum = 0, cnt = 0;
+    const rx0 = Math.max(0, Math.floor(region.x)), ry0 = Math.max(0, Math.floor(region.y));
+    const rx1 = Math.min(w, Math.ceil(region.x + region.w)), ry1 = Math.min(h, Math.ceil(region.y + region.h));
+    for (let y = ry0; y < ry1; y += 4) for (let x = rx0; x < rx1; x += 4) { sum += lum(q, (y * w + x) * 4); cnt++; }
+    const avg = cnt ? sum / cnt : 128;
+    const shade = newCanvas(w, h), light = newCanvas(w, h);
+    const sd = shade.getContext('2d').createImageData(w, h), ld = light.getContext('2d').createImageData(w, h);
+    for (let i = 0; i < p.length; i += 4) {
+      const hi = (lum(p, i) - lum(q, i)) / 255, lo = (lum(q, i) - avg) / 255;
+      const s = clamp(1 + Math.min(0, hi) * 2 + Math.min(0, lo) * 0.4, 0, 1) * 255;
+      const l = clamp(Math.max(0, hi) * 1.8 + Math.max(0, lo) * 0.5, 0, 1) * 255;
+      sd.data[i] = sd.data[i + 1] = sd.data[i + 2] = s; sd.data[i + 3] = 255;
+      ld.data[i] = ld.data[i + 1] = ld.data[i + 2] = l; ld.data[i + 3] = 255;
+    }
+    shade.getContext('2d').putImageData(sd, 0, 0); light.getContext('2d').putImageData(ld, 0, 0);
+    return { shade, light };
+  }
+
+  // ---------- logo processing ----------
+  // Logos arrive any way (PNG, JPG from WhatsApp, screenshots, colour or B/W):
+  // detect the background, remove it, trim margins, then turn it into 1 ink, 2 inks or keep colours.
+  function detectBg(p, w, h) {
+    const px = [];
+    const take = (x, y) => { const i = (y * w + x) * 4; px.push([p[i], p[i + 1], p[i + 2], p[i + 3]]); };
+    const sx = Math.max(1, Math.floor(w / 80)), sy = Math.max(1, Math.floor(h / 80));
+    for (let x = 0; x < w; x += sx) { take(x, 0); take(x, 1); take(x, h - 1); take(x, h - 2); }
+    for (let y = 0; y < h; y += sy) { take(0, y); take(1, y); take(w - 1, y); take(w - 2, y); }
+    const clear = px.filter(c => c[3] < 30).length;
+    if (clear > px.length * 0.4) return { transparent: true };
+    const solid = px.filter(c => c[3] >= 30), med = k => solid.map(c => c[k]).sort((a, b) => a - b)[solid.length >> 1];
+    return { transparent: false, rgb: [med(0), med(1), med(2)] };
+  }
+  const toHex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+
+  // ---------- colour separation (what a print shop does by hand) ----------
+  // The logo's main colours are found automatically; each one is then printed as
+  // ink, halftone ("trama") or left as bare paper. Defaults come from contrast with the bag.
+  const d2rgb = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
+  const lumRGB = c => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
+
+  function extractPalette(p, f) {
+    const pts = [], step = Math.max(1, Math.floor(f.length / 40000));
+    for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) { const i = k * 4; pts.push([p[i], p[i + 1], p[i + 2]]); }
+    if (!pts.length) return [];
+    // farthest-point seeds, then k-means
+    let cs = [pts.reduce((m, c) => lumRGB(c) < lumRGB(m) ? c : m, pts[0])];
+    while (cs.length < 6) {
+      let best = null, bd = 0;
+      for (const c of pts) { const d = Math.min(...cs.map(q => d2rgb(c, q))); if (d > bd) { bd = d; best = c; } }
+      if (!best || bd < 50 * 50) break;
+      cs.push(best);
+    }
+    let counts = [];
+    for (let it = 0; it < 12; it++) {
+      const sums = cs.map(() => [0, 0, 0]); counts = cs.map(() => 0);
+      for (const c of pts) {
+        let bi = 0, bd = Infinity;
+        cs.forEach((q, j) => { const d = d2rgb(c, q); if (d < bd) { bd = d; bi = j; } });
+        sums[bi][0] += c[0]; sums[bi][1] += c[1]; sums[bi][2] += c[2]; counts[bi]++;
+      }
+      cs = cs.map((q, j) => counts[j] ? sums[j].map(v => v / counts[j]) : q);
+    }
+    // merge near-duplicates (JPEG noise, antialiasing) and drop specks
+    let pal = cs.map((rgb, j) => ({ rgb, share: counts[j] / pts.length })).filter(c => c.share > 0);
+    for (let merged = true; merged;) {
+      merged = false;
+      outer: for (let a = 0; a < pal.length; a++) for (let b = a + 1; b < pal.length; b++) {
+        if (d2rgb(pal[a].rgb, pal[b].rgb) < 45 * 45) {
+          const t = pal[a].share + pal[b].share;
+          pal[a] = { rgb: pal[a].rgb.map((v, i) => (v * pal[a].share + pal[b].rgb[i] * pal[b].share) / t), share: t };
+          pal.splice(b, 1); merged = true; break outer;
+        }
+      }
+    }
+    pal = pal.filter(c => c.share >= 0.015).sort((a, b) => b.share - a.share);
+    const segDist = (c, a, b) => {
+      const ab = [0, 1, 2].map(i => b[i] - a[i]), ac = [0, 1, 2].map(i => c[i] - a[i]);
+      const t = clamp((ab[0] * ac[0] + ab[1] * ac[1] + ab[2] * ac[2]) / (d2rgb(a, b) || 1), 0, 1);
+      return Math.sqrt(d2rgb(c, a.map((v, i) => v + ab[i] * t)));
+    };
+    pal = pal.filter(c => !(c.share < 0.12 && pal.some(a => a !== c && a.share > c.share &&
+      pal.some(b => b !== c && b !== a && b.share > c.share && segDist(c.rgb, a.rgb, b.rgb) < 28))));
+    return pal.map(c => ({ rgb: c.rgb, share: c.share, hex: toHex(c.rgb) }));
+  }
+
+  // default roles: split colours into a "dark" and a "light" group (Otsu on luminance);
+  // the group that contrasts with the bag gets ink, the other stays paper
+  function defaultRoles(pal) {
+    if (!pal.length) return;
+    if (pal.length === 1) { pal[0].role1 = 'ink'; pal[0].role2 = 'ink'; return; }
+    const bag = areaColor(), bagL = lumRGB(bag), sorted = [...pal].sort((a, b) => lumRGB(a.rgb) - lumRGB(b.rgb));
+    let bestK = 1, bestV = -1;
+    for (let k = 1; k < sorted.length; k++) {
+      const g1 = sorted.slice(0, k), g2 = sorted.slice(k);
+      const w1 = g1.reduce((s, c) => s + c.share, 0), w2 = g2.reduce((s, c) => s + c.share, 0);
+      const m1 = g1.reduce((s, c) => s + lumRGB(c.rgb) * c.share, 0) / w1, m2 = g2.reduce((s, c) => s + lumRGB(c.rgb) * c.share, 0) / w2;
+      const v = w1 * w2 * (m1 - m2) ** 2;
+      if (v > bestV) { bestV = v; bestK = k; }
+    }
+    const dark = new Set(sorted.slice(0, bestK)), lightBag = bagL >= 0.5;
+    pal.forEach(c => {
+      const inkSide = lightBag ? dark.has(c) : !dark.has(c);
+      c.role1 = inkSide ? 'ink' : 'paper';
+      // 2 inks: the other group also prints if it stands out from the bag
+      c.role2 = inkSide ? 'ink' : d2rgb(c.rgb, bag) > 70 * 70 ? 'ink2' : 'paper';
+    });
+  }
+
+  // processLogo() updates the preview; processLogo('ink' | 'ink2' | 'trama') returns that ink
+  // alone as a solid mask with the same size/crop as the preview (used for the print file)
+  function processLogo(sep) {
+    if (!S.logo) { S.proc = null; return null; }
+    let w = S.logo.naturalWidth || 1000, h = S.logo.naturalHeight || 1000;
+    // cap huge images, upscale tiny ones (e.g. small SVGs) so they stay crisp
+    const max = Math.max(w, h), k = max > 1600 ? 1600 / max : max < 600 ? 600 / max : 1;
+    w = Math.round(w * k); h = Math.round(h * k);
+    const c = newCanvas(w, h), x = c.getContext('2d');
+    x.drawImage(S.logo, 0, 0, w, h);
+    const d = x.getImageData(0, 0, w, h), p = d.data, n = w * h;
+
+    // f = how much each pixel belongs to the logo (0 = background, 1 = logo)
+    const bgInfo = detectBg(p, w, h), f = new Float32Array(n);
+    const t = 0.03 + S.thr / 100 * 0.45, soft = 0.06;
+    const step = v => clamp((v - t + soft) / (2 * soft), 0, 1);
+    if (bgInfo.transparent) {
+      for (let k = 0, i = 3; k < n; k++, i += 4) f[k] = p[i] / 255;
+    } else {
+      const [br, bgc, bb] = bgInfo.rgb;
+      for (let k = 0, i = 0; k < n; k++, i += 4) {
+        const a = p[i + 3] / 255;
+        if (S.mode === 'color' && !S.removeBg) { f[k] = a; continue; }
+        const dist = Math.max(Math.abs(p[i] - br), Math.abs(p[i + 1] - bgc), Math.abs(p[i + 2] - bb)) / 255;
+        f[k] = a * step(dist);
+      }
+    }
+
+    // trim empty margins
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) if (f[y * w + xx] > 0.1) {
+      if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) { x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1; }
+
+    if (S.mode !== 'color') {
+      if (S.paletteDirty || !S.palette) {
+        // keep the user's choices for colours that are still there after re-cleaning
+        const old = S.palette || [], pal = extractPalette(p, f);
+        defaultRoles(pal);
+        pal.forEach(c => {
+          const prev = old.find(o => d2rgb(o.rgb, c.rgb) < 40 * 40);
+          if (prev && prev.manual) { c.role1 = prev.role1; c.role2 = prev.role2; c.manual = true; }
+        });
+        S.palette = pal; S.paletteDirty = false;
+        const second = pal.find(c => c.role2 === 'ink2');
+        if (second && S.ink2Auto) S.ink2 = second.hex;
+      }
+      const pal = S.palette, roleKey = S.mode === 'ink2' ? 'role2' : 'role1';
+      const ink1 = hexToRgb(S.ink), ink2 = hexToRgb(S.ink2);
+      // halftone dots at 45°, ~50% coverage
+      const period = Math.max(5, Math.round(Math.max(w, h) / 110)), R2 = 0.4;
+      const dot = (xx, y) => {
+        const u = (xx + y) / (period * Math.SQRT2), v = (xx - y) / (period * Math.SQRT2);
+        const du = u - Math.round(u), dv = v - Math.round(v), dist = Math.hypot(du, dv);
+        return clamp((R2 - dist) * period * 0.9 + 0.5, 0, 1);
+      };
+      for (let k = 0, i = 0; k < n; k++, i += 4) {
+        let a = 0, col = ink1;
+        if (f[k] > 0.01 && pal.length) {
+          let bi = 0, bd = Infinity;
+          for (let j = 0; j < pal.length; j++) {
+            const q = pal[j].rgb, dd = (p[i] - q[0]) ** 2 + (p[i + 1] - q[1]) ** 2 + (p[i + 2] - q[2]) ** 2;
+            if (dd < bd) { bd = dd; bi = j; }
+          }
+          const role = pal[bi][roleKey], xx = k % w;
+          if (sep) a = role === sep ? f[k] : 0;
+          else if (role === 'ink') a = f[k];
+          else if (role === 'ink2') { a = f[k]; col = ink2; }
+          else if (role === 'trama') a = f[k] * dot(xx, (k - xx) / w);
+          if (sep === 'ink' && S.mode === 'ink' && S.invert && role === 'trama') a = f[k];
+        }
+        if (S.mode === 'ink' && S.invert && sep !== 'trama') {
+          const xx = k % w, y = (k - xx) / w;
+          a = xx >= x0 && xx <= x1 && y >= y0 && y <= y1 ? 1 - a : 0;
+        } else if (S.mode === 'ink' && S.invert) a = 0;
+        p[i] = col[0]; p[i + 1] = col[1]; p[i + 2] = col[2]; p[i + 3] = Math.round(a * 255);
+      }
+    } else {
+      for (let k = 0, i = 0; k < n; k++, i += 4) p[i + 3] = Math.round(f[k] * 255);
+    }
+
+    const pad = Math.round(Math.max(w, h) * 0.01);
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
+    const out = newCanvas(x1 - x0 + 1, y1 - y0 + 1);
+    out.getContext('2d').putImageData(d, -x0, -y0);
+    if (!sep) S.proc = out;
+    return out;
+  }
+
+  // logo colour chips: tap to cycle what each colour becomes
+  const ROLE_NAMES = { ink: 'Tinta', trama: 'Trama', paper: 'Papel', ink2: 'Tinta 2' };
+  function renderPalette() {
+    const box = $('palette'); box.innerHTML = '';
+    if (!S.palette || S.mode === 'color') return;
+    const key = S.mode === 'ink2' ? 'role2' : 'role1';
+    const cycle = S.mode === 'ink2' ? ['ink', 'ink2', 'paper'] : ['ink', 'trama', 'paper'];
+    S.palette.forEach(c => {
+      const b = document.createElement('button'); b.className = 'chip role-' + c[key];
+      b.innerHTML = `<i style="background:${c.hex}"></i><span>${ROLE_NAMES[c[key]]}</span>`;
+      b.title = 'Toca para cambiar';
+      b.onclick = () => {
+        c[key] = cycle[(cycle.indexOf(c[key]) + 1) % cycle.length]; c.manual = true;
+        processLogo(); update();
+      };
+      box.append(b);
+    });
+  }
+
+  // ---------- contact strip ----------
+  const ICONS = {
+    ig(c, x, y, s) {
+      c.lineWidth = s * 0.11;
+      const r = new Path2D(); roundRect(r, x - s * 0.42, y - s * 0.42, s * 0.84, s * 0.84, s * 0.24); c.stroke(r);
+      c.beginPath(); c.arc(x, y, s * 0.19, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.arc(x + s * 0.23, y - s * 0.23, s * 0.06, 0, Math.PI * 2); c.fill();
+    },
+    wa(c, x, y, s) {
+      c.lineWidth = s * 0.1;
+      c.beginPath(); c.arc(x, y, s * 0.4, Math.PI * 0.8, Math.PI * 2.62); c.lineTo(x - s * 0.47, y + s * 0.47); c.closePath(); c.stroke();
+      c.save(); c.translate(x, y); c.rotate(-Math.PI / 4);
+      const ph = new Path2D(); roundRect(ph, -s * 0.07, -s * 0.21, s * 0.14, s * 0.42, s * 0.06); c.fill(ph);
+      c.fillRect(-s * 0.12, -s * 0.24, s * 0.24, s * 0.1); c.fillRect(-s * 0.12, s * 0.14, s * 0.24, s * 0.1);
+      c.restore();
+    },
+    web(c, x, y, s) {
+      c.lineWidth = s * 0.09;
+      c.beginPath(); c.arc(x, y, s * 0.42, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.ellipse(x, y, s * 0.18, s * 0.42, 0, 0, Math.PI * 2); c.stroke();
+      c.beginPath(); c.moveTo(x - s * 0.42, y); c.lineTo(x + s * 0.42, y);
+      c.moveTo(x - s * 0.36, y - s * 0.2); c.lineTo(x + s * 0.36, y - s * 0.2);
+      c.moveTo(x - s * 0.36, y + s * 0.2); c.lineTo(x + s * 0.36, y + s * 0.2); c.stroke();
+    },
+    dir(c, x, y, s) {
+      const p = new Path2D();
+      p.moveTo(x, y + s * 0.48);
+      p.bezierCurveTo(x - s * 0.1, y + s * 0.3, x - s * 0.36, y + s * 0.05, x - s * 0.36, y - s * 0.14);
+      p.arc(x, y - s * 0.14, s * 0.36, Math.PI, 0);
+      p.bezierCurveTo(x + s * 0.36, y + s * 0.05, x + s * 0.1, y + s * 0.3, x, y + s * 0.48);
+      p.moveTo(x + s * 0.13, y - s * 0.14); p.arc(x, y - s * 0.14, s * 0.13, 0, Math.PI * 2);
+      c.fill(p, 'evenodd');
+    },
+    mail(c, x, y, s) {
+      c.lineWidth = s * 0.09; c.lineJoin = 'round';
+      c.strokeRect(x - s * 0.44, y - s * 0.3, s * 0.88, s * 0.6);
+      c.beginPath(); c.moveTo(x - s * 0.44, y - s * 0.3); c.lineTo(x, y + s * 0.05); c.lineTo(x + s * 0.44, y - s * 0.3); c.stroke();
+    },
+    fb(c, x, y, s) {
+      c.font = `700 ${s * 1.05}px Arial, Helvetica, sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('f', x, y + s * 0.04); c.textAlign = 'left';
+    },
+  };
+  const CONTACT_KEYS = ['ig', 'wa', 'web', 'dir', 'mail', 'fb'];
+
+  function contactItems() { return CONTACT_KEYS.filter(k => S.contact[k].trim()).map(k => ({ k, text: S.contact[k].trim() })); }
+  function contactColor() { return S.ink; }
+
+  // lays the strip out centred on (cx, cy); returns its bounding box (design space)
+  function drawContact(c, D) {
+    const items = contactItems();
+    if (!S.contact.on || !items.length) return null;
+    const fs = 22 * S.contact.scale, icon = fs * 1.15, gap = fs * 0.45, sep = fs * 0.9, lineH = fs * 2;
+    c.font = `600 ${fs}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`;
+    const width = it => icon + gap + c.measureText(it.text).width;
+    // pack items into rows that fit the bag face
+    const maxW = D.box.w * 1.08, rows = [[]];
+    for (const it of items) {
+      const row = rows[rows.length - 1];
+      const rw = row.reduce((s, r) => s + width(r) + sep * 2, 0) + width(it);
+      if (row.length && (rw > maxW || row.length >= 3)) rows.push([it]); else row.push(it);
+    }
+    const col = contactColor(), cx = D.box.x + D.box.w / 2, cy = S.contact.y;
+    c.fillStyle = col; c.strokeStyle = col; c.textBaseline = 'middle';
+    const top = cy - (rows.length * lineH) / 2;
+    let bw = 0;
+    rows.forEach((row, r) => {
+      const rw = row.reduce((s, it) => s + width(it), 0) + sep * 2 * (row.length - 1);
+      bw = Math.max(bw, rw);
+      let x = cx - rw / 2; const y = top + lineH * (r + 0.5);
+      row.forEach((it, i) => {
+        if (i) {
+          if (S.contact.lines) { c.fillRect(x + sep - fs * 0.04, y - fs * 0.8, fs * 0.08, fs * 1.6); }
+          x += sep * 2;
+        }
+        c.save(); ICONS[it.k](c, x + icon / 2, y, icon); c.restore();
+        c.fillStyle = col; c.font = `600 ${fs}px "Segoe UI", Roboto, Helvetica, Arial, sans-serif`; c.textBaseline = 'middle';
+        c.fillText(it.text, x + icon + gap, y + fs * 0.04);
+        x += width(it);
+      });
+    });
+    return { x: cx - bw / 2 - 10, y: top - 6, w: bw + 20, h: rows.length * lineH + 12 };
+  }
+
+  // ---------- compositing ----------
+  const P = newCanvas(1, 1), L = newCanvas(1, 1), M = newCanvas(1, 1), T = newCanvas(1, 1);
+
+  function logoHeight() { return S.proc ? S.w * S.proc.height / S.proc.width : 0; }
+  function logoCorners() {
+    const h = logoHeight(), a = S.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+    return [[-S.w / 2, -h / 2], [S.w / 2, -h / 2], [S.w / 2, h / 2], [-S.w / 2, h / 2]]
+      .map(([x, y]) => [S.x + x * co - y * si, S.y + x * si + y * co]);
+  }
+  function bounds(pts) {
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  }
+
+  // everything that gets printed, already placed on the bag (canvas size), or null
+  function composePrint() {
+    const D = design();
+    P.width = D.w; P.height = D.h;
+    const p = P.getContext('2d');
+    const boxes = [];
+    if (S.proc) {
+      p.save(); p.translate(S.x, S.y); p.rotate(S.rot * Math.PI / 180);
+      const h = logoHeight(); p.drawImage(S.proc, -S.w / 2, -h / 2, S.w, h); p.restore();
+      boxes.push(bounds(logoCorners()));
+    }
+    S.cBox = drawContact(p, D);
+    if (S.cBox) boxes.push(S.cBox);
+    if (!boxes.length) return null;
+
+    let out = P;
+    if (S.H) {
+      L.width = cv.width; L.height = cv.height;
+      const all = bounds(boxes.flatMap(b => [[b.x - 20, b.y - 20], [b.x + b.w + 20, b.y + b.h + 20]]));
+      warp(P, L.getContext('2d'), S.H, all);
+      out = L;
+    }
+    if (S.photo && S.texture && S.detail) {
+      [M, T].forEach(c => { c.width = cv.width; c.height = cv.height; });
+      M.getContext('2d').drawImage(out, 0, 0);
+      const t = T.getContext('2d');
+      t.drawImage(out, 0, 0);
+      t.globalCompositeOperation = 'multiply'; t.drawImage(S.detail.shade, 0, 0);
+      t.globalCompositeOperation = 'screen'; t.drawImage(S.detail.light, 0, 0);
+      t.globalCompositeOperation = 'destination-in'; t.drawImage(M, 0, 0);
+      out = T;
+    }
+    return out;
+  }
+
+  function drawPrint(c, print) {
+    if (!print) return;
+    c.save();
+    // real screen-print ink lets a little of the paper through
+    c.globalAlpha = S.opacity * (S.photo && S.texture ? 0.95 : 1);
+    c.globalCompositeOperation = S.blend;
+    c.drawImage(print, 0, 0);
+    c.restore();
+  }
+
+  function strokePoly(c, pts) {
+    c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.stroke();
+  }
+  function drawGuides(c) {
+    c.save();
+    c.strokeStyle = 'rgba(180,68,26,.9)'; c.lineWidth = 2; c.setLineDash([8, 6]);
+    if (guide === 'logo' && S.proc) strokePoly(c, logoCorners().map(p => toCanvasPt(...p)));
+    if (guide === 'contact' && S.cBox) {
+      const b = S.cBox;
+      strokePoly(c, [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(p => toCanvasPt(...p)));
+    }
+    c.restore();
+  }
+  function drawCornerEditor(c) {
+    if (!S.editCorners || !S.quad) return;
+    c.save();
+    c.fillStyle = 'rgba(180,68,26,.10)'; c.strokeStyle = '#b4441a'; c.lineWidth = 3;
+    c.beginPath(); S.quad.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); c.stroke();
+    S.quad.forEach(([x, y]) => {
+      c.beginPath(); c.arc(x, y, 16, 0, Math.PI * 2);
+      c.fillStyle = '#fff'; c.fill(); c.stroke();
+      c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fillStyle = '#b4441a'; c.fill();
+    });
+    c.restore();
+  }
+
+  // selection guide shows only while adjusting, then fades so the preview is clean
+  let showUI = false, guide = 'logo', uiTimer = null, drag = null;
+  function showGuide(which = guide) {
+    guide = which; showUI = true; clearTimeout(uiTimer);
+    uiTimer = setTimeout(() => { if (!drag) { showUI = false; render(); } }, 1200);
+  }
+
+  function render() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const print = composePrint();
+    if (S.photo) {
+      ctx.drawImage(S.photo, 0, 0, cv.width, cv.height);
+      drawPrint(ctx, print);
+    } else {
+      bg(ctx, cv.width, cv.height);
+      drawBag(ctx, S.template, S.bagColor, () => { if (S.clip) drawPrint(ctx, print); });
+      if (!S.clip) drawPrint(ctx, print);
+    }
+    if (showUI) drawGuides(ctx);
+    drawCornerEditor(ctx);
+  }
+
+  // ---------- placement ----------
+  function centerLogo() {
+    const { box, quad } = design();
+    S.x = box.x + box.w / 2; S.y = box.y + box.h * (quad ? 0.38 : 0.5);
+  }
+  function fitLogo() {
+    if (!S.proc) return;
+    const { box, quad } = design(), ar = S.proc.width / S.proc.height;
+    S.w = quad ? Math.min(box.w * 0.72, box.h * 0.4 * ar) : Math.min(box.w * 0.8, box.h * 0.8 * ar);
+  }
+  function placeContact() {
+    const { box, quad } = design();
+    S.contact.y = quad ? box.y + box.h * 0.86 : box.y + box.h * 0.92;
+  }
+  function resetPlacement() { centerLogo(); fitLogo(); placeContact(); }
+
+  // average brightness of the bag where the logo goes, to pick black or white ink
+  function areaColor() {
+    if (!S.photo) return hexToRgb(S.bagColor);
+    let r;
+    if (S.quad) { const b = bounds(S.quad); r = { x: b.x + b.w * 0.25, y: b.y + b.h * 0.2, w: b.w * 0.5, h: b.h * 0.5 }; }
+    else { const b = design().box; r = b; }
+    const c = newCanvas(8, 8), x = c.getContext('2d');
+    const kx = S.photo.naturalWidth / cv.width, ky = S.photo.naturalHeight / cv.height;
+    x.drawImage(S.photo, r.x * kx, r.y * ky, r.w * kx, r.h * ky, 0, 0, 8, 8);
+    const d = x.getImageData(0, 0, 8, 8).data, s = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; }
+    return s.map(v => v / 64);
+  }
+  function areaLuminance() { return lumRGB(areaColor()); }
+  function autoInk() {
+    S.ink = areaLuminance() < 0.5 ? WHITE : BLACK;
+    if (S.palette) { S.palette.forEach(c => { c.manual = false; }); S.paletteDirty = true; }
+    processLogo();
+  }
+
+  // ---------- corner overrides (saved on this device) ----------
+  const CORNERS_KEY = 'conceptualizador.esquinas';
+  function loadCorners() { try { return JSON.parse(localStorage.getItem(CORNERS_KEY)) || {}; } catch { return {}; } }
+  function saveCorners(all) { try { localStorage.setItem(CORNERS_KEY, JSON.stringify(all)); } catch { } }
+  const DIMS_KEY = 'conceptualizador.medidas';
+  function loadAllDims() { try { return JSON.parse(localStorage.getItem(DIMS_KEY)) || {}; } catch { return {}; } }
+  function dimsKey() { return S.model !== null ? MODELOS[S.model].archivo : !S.photo ? 'plantilla:' + S.template : null; }
+  function storedDims(key, m) { return (key && loadAllDims()[key]) || (m && m.area && m.area.cm) || null; }
+  function saveDims(key, dims) {
+    if (!key) return;
+    try { const all = loadAllDims(); if (dims) all[key] = dims; else delete all[key]; localStorage.setItem(DIMS_KEY, JSON.stringify(all)); } catch { }
+  }
+  // keep logo & strip at the same spot relative to the bag face while the face's shape changes
+  function keepRelative(change) {
+    const D0 = design(), rel = [S.x / D0.w, S.y / D0.h, S.w / D0.w, S.contact.y / D0.h];
+    change();
+    const D1 = design(); S.x = rel[0] * D1.w; S.y = rel[1] * D1.h; S.w = rel[2] * D1.w; S.contact.y = rel[3] * D1.h;
+  }
+  const modelQuad = m => loadCorners()[m.archivo] || (m.area && m.area.quad) || [[0.12, 0.25], [0.88, 0.25], [0.88, 0.92], [0.12, 0.92]];
+
+  // ---------- UI ----------
+  function syncControls() {
+    const ink = S.mode !== 'color';
+    $('logoCtl').classList.toggle('hidden', !S.proc);
+    $('size').max = design().w; $('size').value = Math.round(S.w); $('sizeO').textContent = Math.round(S.w);
+    $('rot').value = S.rot; $('rotO').textContent = S.rot + '°';
+    $('op').value = Math.round(S.opacity * 100); $('opO').textContent = Math.round(S.opacity * 100) + '%';
+    $('mode').value = S.mode;
+    $('thr').value = S.thr; $('thrO').textContent = S.thr;
+    $('inkRow').classList.toggle('hidden', !ink && !S.contact.on);
+    $('ink2Row').classList.toggle('hidden', S.mode !== 'ink2');
+    $('palRow').classList.toggle('hidden', !ink || !S.palette || S.palette.length < 2);
+    renderPalette();
+    $('rmBgRow').classList.toggle('hidden', ink);
+    $('thrRow').classList.toggle('hidden', !ink && !S.removeBg);
+    $('invertRow').classList.toggle('hidden', S.mode !== 'ink');
+    $('texRow').classList.toggle('hidden', !S.photo);
+    $('clipRow').classList.toggle('hidden', !!S.photo);
+    $('colorSec').classList.toggle('hidden', !!S.photo);
+    $('cCtl').classList.toggle('hidden', !S.contact.on);
+    $('cSizeO').textContent = Math.round(S.contact.scale * 100) + '%';
+    document.querySelectorAll('#inks .sw').forEach(b => b.classList.toggle('on', b.dataset.c === S.ink));
+    document.querySelectorAll('#inks2 .sw').forEach(b => b.classList.toggle('on', b.dataset.c === S.ink2));
+    $('inks').querySelector('input').value = S.ink; $('inks2').querySelector('input').value = S.ink2;
+    document.querySelectorAll('.tpl:not(.modelo)').forEach(b => b.classList.toggle('on', !S.photo && b.dataset.k === S.template));
+    document.querySelectorAll('.modelo').forEach(b => b.classList.toggle('on', +b.dataset.i === S.model));
+    document.querySelectorAll('#swatches .sw').forEach(b => b.classList.toggle('on', b.dataset.c === S.bagColor));
+    $('customColor').value = S.bagColor;
+    $('photoLabel').textContent = S.photo && S.model === null ? '✓ Usando tu foto · clic para cambiarla' : '…o sube otra foto de bolsa';
+    $('cornerBtns').classList.toggle('hidden', S.model === null);
+    syncDims();
+    $('editCorners').textContent = S.editCorners ? '✓ Listo' : 'Ajustar esquinas del frente';
+    $('editCorners').classList.toggle('on', S.editCorners);
+    $('saveCorners').classList.toggle('hidden', !Object.keys(loadCorners()).length);
+    $('hint').innerHTML = S.editCorners
+      ? 'Arrastra los 4 círculos a las esquinas del frente de la bolsa (sin contar el costado)'
+      : '<span class="hint-desk">Arrastra el logo o la franja para moverlos · Ctrl + rueda del mouse para cambiar tamaño · Flechas del teclado para ajuste fino</span>'
+      + '<span class="hint-touch">Un dedo mueve · dos dedos agrandan y giran</span>';
+  }
+  const update = () => { syncControls(); render(); showSizes(); };
+
+  // drawn templates with live thumbnails
+  Object.entries(TEMPLATES).forEach(([k, t]) => {
+    const b = document.createElement('button'); b.className = 'tpl'; b.dataset.k = k;
+    const c = newCanvas(200, 200), x = c.getContext('2d'); x.scale(0.2, 0.2); bg(x, 1000, 1000); drawBag(x, k, t.color);
+    b.append(c, t.name);
+    b.onclick = () => { setPhoto(null); S.template = k; S.bagColor = t.color; S.dims = storedDims('plantilla:' + k); resetPlacement(); autoInk(); update(); };
+    $('templates').append(b);
+  });
+
+  // your own bag photos, loaded from modelos.js (generated by actualizar-modelos.bat)
+  if (MODELOS.length) {
+    $('misModelosBox').classList.remove('hidden');
+    MODELOS.forEach((m, i) => {
+      const b = document.createElement('button'); b.className = 'tpl modelo'; b.dataset.i = i; b.title = m.nombre;
+      const img = new Image(); img.src = m.src; img.alt = m.nombre;
+      b.append(img, m.nombre);
+      b.onclick = () => selectModel(i);
+      $('misModelos').append(b);
+    });
+  }
+  function selectModel(i) {
+    const m = MODELOS[i], img = new Image();
+    img.onload = () => {
+      S.model = i; S.editCorners = false;
+      setPhoto(img); S.model = i; S.dims = storedDims(m.archivo, m); setQuad(modelQuad(m)); refreshDetail();
+      resetPlacement();
+      autoInk(); update();
+    };
+    img.src = m.src;
+  }
+
+  function swatchRow(box, list, get, set) {
+    list.forEach(([name, c]) => {
+      const b = document.createElement('button'); b.className = 'sw'; b.title = name; b.dataset.c = c; b.style.background = c;
+      b.onclick = () => { set(c); update(); };
+      box.append(b);
+    });
+    const custom = document.createElement('input'); custom.type = 'color'; custom.title = 'Otro color';
+    custom.oninput = () => { set(custom.value); update(); };
+    box.append(custom);
+    return custom;
+  }
+  swatchRow($('inks'), INKS, () => S.ink, c => { S.ink = c; processLogo(); });
+  swatchRow($('inks2'), INKS, () => S.ink2, c => { S.ink2 = c; S.ink2Auto = false; processLogo(); });
+
+  SWATCHES.forEach(([name, c]) => {
+    const b = document.createElement('button'); b.className = 'sw'; b.title = name; b.dataset.c = c; b.style.background = c;
+    b.onclick = () => { S.bagColor = c; autoBlend(); autoInk(); update(); };
+    $('swatches').append(b);
+  });
+  const custom = document.createElement('input'); custom.type = 'color'; custom.id = 'customColor'; custom.title = 'Color personalizado';
+  custom.oninput = () => { S.bagColor = custom.value; update(); };
+  custom.onchange = () => { autoBlend(); autoInk(); update(); };
+  $('swatches').append(custom);
+
+  // "multiply" makes logos vanish on dark bags; fall back to normal there
+  function autoBlend() {
+    if (S.blend === 'multiply' && areaLuminance() < 0.35) { S.blend = 'source-over'; $('blend').value = S.blend; }
+  }
+
+  function loadImage(file) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = r.result; };
+      r.onerror = rej; r.readAsDataURL(file);
+    });
+  }
+
+  async function setLogo(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    S.logo = await loadImage(file);
+    S.ink2Auto = true; S.invert = false; $('invert').checked = false;
+    S.palette = null; S.paletteDirty = true;
+    processLogo(); centerLogo(); fitLogo();
+    $('logoLabel').innerHTML = `✓ ${file.name}<br><small>clic para cambiar</small>`;
+    update();
+  }
+
+  function setPhoto(img) {
+    S.photo = img;
+    if (img) {
+      const k = 1000 / img.naturalWidth;
+      cv.width = 1000; cv.height = Math.round(clamp(img.naturalHeight * k, 400, 1800));
+    } else {
+      cv.width = 1000; cv.height = 1000;
+      S.detail = null; S.model = null; S.editCorners = false;
+    }
+    setQuad(null);
+    S.detail = null;
+  }
+  function refreshDetail() {
+    if (!S.photo) return;
+    // centre of the bag front only, so the wall/table around it doesn't skew the brightness
+    const b = S.quad ? bounds(S.quad) : design().box;
+    S.detail = buildDetail(S.photo, { x: b.x + b.w * 0.2, y: b.y + b.h * 0.15, w: b.w * 0.6, h: b.h * 0.6 });
+  }
+
+  $('logoFile').onchange = e => setLogo(e.target.files[0]);
+  $('photoFile').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    setPhoto(await loadImage(f)); S.model = null; S.editCorners = false; S.dims = null; refreshDetail();
+    resetPlacement(); autoInk(); update();
+  };
+
+  $('size').oninput = e => { S.w = +e.target.value; showGuide('logo'); update(); };
+  $('rot').oninput = e => { S.rot = +e.target.value; showGuide('logo'); update(); };
+  $('op').oninput = e => { S.opacity = e.target.value / 100; update(); };
+  $('blend').onchange = e => { S.blend = e.target.value; update(); };
+  $('mode').onchange = e => { S.mode = e.target.value; processLogo(); update(); };
+  $('thr').oninput = e => { S.thr = +e.target.value; S.paletteDirty = true; processLogo(); update(); };
+  $('rmBg').onchange = e => { S.removeBg = e.target.checked; S.paletteDirty = true; processLogo(); update(); };
+  $('invert').onchange = e => { S.invert = e.target.checked; processLogo(); update(); };
+  $('texture').onchange = e => { S.texture = e.target.checked; update(); };
+  $('clip').onchange = e => { S.clip = e.target.checked; update(); };
+  $('center').onclick = () => { centerLogo(); showGuide('logo'); update(); };
+  $('fit').onclick = () => { fitLogo(); showGuide('logo'); update(); };
+  $('rot0').onclick = () => { S.rot = 0; update(); };
+
+  $('cOn').onchange = e => { S.contact.on = e.target.checked; if (S.contact.on) showGuide('contact'); update(); };
+  CONTACT_KEYS.forEach(k => { $('c_' + k).oninput = e => { S.contact[k] = e.target.value; update(); }; });
+  $('cSize').oninput = e => { S.contact.scale = e.target.value / 100; showGuide('contact'); update(); };
+  $('cLines').onchange = e => { S.contact.lines = e.target.checked; update(); };
+
+  $('editCorners').onclick = () => {
+    S.editCorners = !S.editCorners;
+    if (!S.editCorners && S.model !== null) {
+      // remember the corrected corners on this device
+      const all = loadCorners(); all[MODELOS[S.model].archivo] = S.quadFrac; saveCorners(all);
+      refreshDetail(); autoInk();
+    }
+    update();
+  };
+  $('saveCorners').onclick = () => {
+    const out = {};
+    MODELOS.forEach(m => { out[m.archivo] = { quad: modelQuad(m) }; const cm = storedDims(m.archivo, m); if (cm) out[m.archivo].cm = cm; });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+    a.download = 'areas.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  // ---------- pointer: drag logo / strip / corners, wheel to resize ----------
+  const toCanvas = e => {
+    const r = cv.getBoundingClientRect();
+    // the canvas keeps its aspect inside the box (object-fit: contain)
+    const k = Math.min(r.width / cv.width, r.height / cv.height);
+    const ox = (r.width - cv.width * k) / 2, oy = (r.height - cv.height * k) / 2;
+    return { x: (e.clientX - r.left - ox) / k, y: (e.clientY - r.top - oy) / k, k };
+  };
+  function hitLogo(dx, dy) {
+    if (!S.proc) return false;
+    const a = -S.rot * Math.PI / 180, x = dx - S.x, y = dy - S.y;
+    const lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
+    return Math.abs(lx) <= S.w / 2 + 10 && Math.abs(ly) <= logoHeight() / 2 + 10;
+  }
+  const hitContact = (dx, dy) => S.cBox && dx >= S.cBox.x && dx <= S.cBox.x + S.cBox.w && dy >= S.cBox.y && dy <= S.cBox.y + S.cBox.h;
+
+  cv.tabIndex = 0;
+  const touches = new Map();   // active fingers on the canvas (canvas coords)
+  const pinchInfo = () => {
+    const [a, b] = [...touches.values()];
+    return { d: Math.hypot(b.x - a.x, b.y - a.y) || 1, ang: Math.atan2(b.y - a.y, b.x - a.x) };
+  };
+  cv.addEventListener('pointerdown', e => {
+    const p = toCanvas(e);
+    touches.set(e.pointerId, p);
+    if (touches.size === 2 && !S.editCorners && (S.proc || S.cBox)) {
+      // second finger: switch from moving to pinching whatever was being dragged
+      cv.setPointerCapture(e.pointerId);
+      const target = drag && drag.target === 'contact' ? 'contact' : S.proc ? 'logo' : 'contact';
+      const { d, ang } = pinchInfo();
+      drag = { pinch: true, target, d0: d, a0: ang, w0: S.w, rot0: S.rot, s0: S.contact.scale };
+      guide = target; showUI = true; clearTimeout(uiTimer); render();
+      return;
+    }
+    if (touches.size > 2) return;
+    if (S.editCorners && S.quad) {
+      let best = -1, bd = Infinity;
+      S.quad.forEach(([x, y], i) => { const d = Math.hypot(x - p.x, y - p.y); if (d < bd) { bd = d; best = i; } });
+      if (bd <= Math.max(28 / p.k, 40)) { drag = { corner: best }; cv.setPointerCapture(e.pointerId); }
+      return;
+    }
+    const [dx, dy] = toDesignPt(p.x, p.y);
+    let target = null;
+    if (hitContact(dx, dy) && !hitLogo(dx, dy)) target = 'contact';
+    else if (S.proc) target = 'logo';
+    else if (S.cBox) target = 'contact';
+    if (!target) return;
+    cv.setPointerCapture(e.pointerId); cv.focus();
+    drag = target === 'logo' ? { target, ox: dx - S.x, oy: dy - S.y } : { target, oy: dy - S.contact.y };
+    cv.style.cursor = 'grabbing'; guide = target; showUI = true; clearTimeout(uiTimer); render();
+  });
+  cv.addEventListener('pointermove', e => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, toCanvas(e));
+    if (!drag) return;
+    const p = toCanvas(e);
+    if (drag.pinch) {
+      if (touches.size < 2) return;
+      const { d, ang } = pinchInfo(), k = d / drag.d0;
+      if (drag.target === 'logo') {
+        S.w = clamp(drag.w0 * k, 20, design().w * 1.5);
+        S.rot = Math.round(((drag.rot0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
+      } else S.contact.scale = clamp(drag.s0 * k, 0.4, 2.5);
+      syncControls(); render(); showSizes(); return;
+    }
+    if (drag.corner !== undefined) {
+      const q = S.quadFrac.map(c => c.slice());
+      q[drag.corner] = [clamp(p.x / cv.width, 0, 1), clamp(p.y / cv.height, 0, 1)];
+      // keep the logo at the same spot relative to the face while the face changes
+      const D0 = design(), rel = [S.x / D0.w, S.y / D0.h, S.w / D0.w, S.contact.y / D0.h];
+      setQuad(q);
+      const D1 = design(); S.x = rel[0] * D1.w; S.y = rel[1] * D1.h; S.w = rel[2] * D1.w; S.contact.y = rel[3] * D1.h;
+      render(); return;
+    }
+    const [dx, dy] = toDesignPt(p.x, p.y);
+    if (drag.target === 'logo') { S.x = dx - drag.ox; S.y = dy - drag.oy; }
+    else S.contact.y = dy - drag.oy;
+    render();
+  });
+  const endDrag = e => {
+    touches.delete(e.pointerId);
+    // lifting one finger of a pinch ends the gesture (no jump back to one-finger drag)
+    if (drag && drag.pinch && touches.size) { drag = null; return; }
+    if (!drag) return;
+    const wasCorner = drag.corner !== undefined;
+    drag = null; cv.style.cursor = 'grab';
+    if (wasCorner) { syncControls(); render(); } else { showGuide(); render(); }
+  };
+  cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+  cv.addEventListener('wheel', e => {
+    // plain wheel scrolls as usual; Ctrl + wheel resizes (and stops the browser zoom)
+    if (S.editCorners || !e.ctrlKey) return;
+    const p = toCanvas(e), [dx, dy] = toDesignPt(p.x, p.y);
+    const k = e.deltaY < 0 ? 1.05 : 1 / 1.05;
+    if (hitContact(dx, dy) && !hitLogo(dx, dy)) {
+      e.preventDefault(); S.contact.scale = clamp(S.contact.scale * k, 0.4, 2.5); $('cSize').value = Math.round(S.contact.scale * 100);
+      showGuide('contact'); update();
+    } else if (S.proc) {
+      e.preventDefault(); S.w = clamp(S.w * k, 20, design().w * 1.5); showGuide('logo'); update();
+    }
+  }, { passive: false });
+  cv.addEventListener('keydown', e => {
+    if (!S.proc || S.editCorners) return;
+    const step = e.shiftKey ? 10 : 2;
+    const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    if (d) { e.preventDefault(); S.x += d[0]; S.y += d[1]; showGuide('logo'); render(); }
+  });
+
+  // drop a logo onto the bag
+  cv.addEventListener('dragover', e => e.preventDefault());
+  cv.addEventListener('drop', e => { e.preventDefault(); setLogo(e.dataTransfer.files[0]); });
+
+  // ---------- real size & print file ----------
+  // the bag front in design space (what the cm measurements refer to)
+  const TEMPLATE_FACE = {
+    tote: { x: 224, y: 320, w: 562, h: 585 }, kraft: { x: 250, y: 290, w: 450, h: 610 }, diecut: { x: 240, y: 150, w: 520, h: 750 },
+  };
+  function faceRect() {
+    if (S.quad) { const D = design(); return { x: 0, y: 0, w: D.w, h: D.h }; }
+    if (!S.photo) return TEMPLATE_FACE[S.template];
+    return null;
+  }
+  const mmPerPx = () => { const face = faceRect(); return face && S.dims ? S.dims.w * 10 / face.w : null; };
+  const cm = v => (v / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
+  function showSizes() {
+    const box = $('sizeInfo'), k = mmPerPx(), face = faceRect();
+    $('exportSvg').disabled = !k || (!S.proc && !S.cBox);
+    if (!face) { box.innerHTML = 'Para medidas reales usa uno de tus modelos o una plantilla.'; return; }
+    if (!k) { box.innerHTML = ''; return; }
+    const lines = [];
+    if (S.proc) {
+      const b = bounds(logoCorners());
+      lines.push(`<b>Logo:</b> ${cm(b.w * k)} × ${cm(b.h * k)} cm · a ${cm((b.y - face.y) * k)} cm del borde superior`);
+    }
+    if (S.cBox) lines.push(`<b>Franja:</b> ${cm(S.cBox.w * k)} × ${cm(S.cBox.h * k)} cm · a ${cm((face.y + face.h - S.cBox.y - S.cBox.h) * k)} cm del borde inferior`);
+    box.innerHTML = lines.join('<br>');
+  }
+
+  function parseCm(v) { const n = parseFloat(String(v).replace(',', '.')); return n > 0 && n < 500 ? n : null; }
+  function onDimsInput() {
+    const w = parseCm($('dimW').value), h = parseCm($('dimH').value);
+    const dims = w && h ? { w, h } : null;
+    keepRelative(() => { S.dims = dims; if (S.quadFrac) setQuad(S.quadFrac); });
+    saveDims(dimsKey(), dims);
+    render(); showSizes();
+  }
+  $('dimW').oninput = onDimsInput; $('dimH').oninput = onDimsInput;
+  function syncDims() {
+    const fmt = v => v ? String(v).replace('.', ',') : '';
+    if (document.activeElement !== $('dimW') && document.activeElement !== $('dimH')) {
+      $('dimW').value = fmt(S.dims && S.dims.w); $('dimH').value = fmt(S.dims && S.dims.h);
+    }
+  }
+
+  // vectorise a mask canvas (anything opaque = ink) into SVG path data, in the mask's pixel units
+  function traceMask(mask) {
+    const u = Math.min(2, 2400 / Math.max(mask.width, mask.height));   // upscale a bit for smoother curves
+    const w = Math.round(mask.width * u), h = Math.round(mask.height * u);
+    const c = newCanvas(w, h), x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high'; x.drawImage(mask, 0, 0, w, h);
+    const img = x.getImageData(0, 0, w, h), p = img.data;
+    let any = false;
+    for (let i = 0; i < p.length; i += 4) {
+      const on = p[i + 3] > 127; any = any || on;
+      p[i] = p[i + 1] = p[i + 2] = on ? 0 : 255; p[i + 3] = 255;
+    }
+    if (!any) return null;
+    const opts = {
+      ltres: 0.5, qtres: 0.5, pathomit: 6, rightangleenhance: false, colorsampling: 0, numberofcolors: 2,
+      colorquantcycles: 1, mincolorratio: 0, blurradius: 0, strokewidth: 0, linefilter: false, roundcoords: -1, scale: 1,
+      pal: [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }],
+    };
+    const td = ImageTracer.imagedataToTracedata(img, opts);
+    const paths = [];
+    td.layers[0].forEach((pth, i) => {
+      if (pth.isholepath) return;
+      const m = ImageTracer.svgpathstring(td, 0, i, opts).match(/ d="([^"]+)"/);
+      if (m) paths.push(m[1].trim().replace(/-?\d+\.\d+/g, v => (+v).toFixed(2)));
+    });
+    return { d: paths.join(' '), scale: 1 / u };
+  }
+
+  const inkName = hex => (INKS.find(([, c]) => c.toLowerCase() === hex.toLowerCase()) || [hex])[0];
+  const xmlEsc = t => t.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
+  const r2 = v => +v.toFixed(3);
+  const tintOf = (hex, t) => { const c = hexToRgb(hex); return toHex(c.map(v => v + (255 - v) * t)); };
+
+  function buildPrintSVG() {
+    const face = faceRect(), k = mmPerPx(), W = S.dims.w * 10, H = S.dims.h * 10;
+    const groups = [];   // { id, label, fill, extra, body }
+    const add = (id, label, fill, body, extra = '') => {
+      let g = groups.find(x => x.id === id);
+      if (!g) { g = { id, label, fill, extra, body: '' }; groups.push(g); }
+      g.body += body;
+    };
+    if (S.proc) {
+      const pw = S.proc.width, ph = S.proc.height;
+      const place = `translate(${r2((S.x - face.x) * k)} ${r2((S.y - face.y) * k)}) rotate(${r2(S.rot)}) scale(${r2(S.w * k / pw)}) translate(${r2(-pw / 2)} ${r2(-ph / 2)})`;
+      if (S.mode === 'color') {
+        add('Logo_color', 'Logo a color (imagen, para impresión digital)', 'none',
+          `<image transform="${place}" width="${pw}" height="${ph}" href="${S.proc.toDataURL('image/png')}"/>`);
+      } else {
+        const seps = S.mode === 'ink2'
+          ? [['ink', 'Tinta_1', S.ink], ['ink2', 'Tinta_2', S.ink2]]
+          : [['ink', 'Tinta_1', S.ink], ['trama', 'Tinta_1_TRAMA', S.ink]];
+        for (const [role, id, hex] of seps) {
+          const t = traceMask(processLogo(role));
+          if (!t) continue;
+          const isTrama = role === 'trama';
+          const label = isTrama ? `Tinta 1 ${inkName(hex)} - TRAMA 50% (aplicar trama al sacar el fotolito)` : `${id.replace('_', ' ')} ${inkName(hex)}`;
+          add(id, label, isTrama ? tintOf(hex, 0.5) : hex,
+            `<g transform="${place} scale(${r2(t.scale)})"><path fill-rule="evenodd" d="${t.d}"/></g>`);
+        }
+      }
+    }
+    if (S.cBox) {
+      // contact strip rendered big and vectorised, so it matches the mockup exactly
+      const b = S.cBox, z = 4, c = newCanvas(Math.ceil(b.w * z), Math.ceil(b.h * z)), x = c.getContext('2d');
+      x.scale(z, z); x.translate(-b.x, -b.y); drawContact(x, design());
+      const t = traceMask(c);
+      if (t) add('Tinta_1', `Tinta 1 ${inkName(S.ink)}`, S.ink,
+        `<g id="Franja_contacto" transform="translate(${r2((b.x - face.x) * k)} ${r2((b.y - face.y) * k)}) scale(${r2(k / z * t.scale)})"><path fill-rule="evenodd" d="${t.d}"/></g>`);
+    }
+    const client = $('client').value.trim();
+    const model = S.model !== null ? MODELOS[S.model].nombre : TEMPLATES[S.template] ? TEMPLATES[S.template].name : '';
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${r2(W)}mm" height="${r2(H)}mm" viewBox="0 0 ${r2(W)} ${r2(H)}">
+<title>${xmlEsc(`Bolsa ${model} ${S.dims.w}x${S.dims.h} cm${client ? ' - ' + client : ''}`)}</title>
+<g id="Contorno_bolsa_NO_IMPRIMIR" fill="none" stroke="#9a9a9a" stroke-width="0.3"><rect x="0" y="0" width="${r2(W)}" height="${r2(H)}"/></g>
+${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</desc>${g.body}</g>`).join('\n')}
+</svg>
+`;
+  }
+
+  $('exportSvg').onclick = () => {
+    if (!mmPerPx()) return;
+    const btn = $('exportSvg'), label = btn.textContent;
+    btn.textContent = 'Vectorizando…'; btn.disabled = true;
+    setTimeout(() => {
+      try {
+        const svg = buildPrintSVG();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+        a.download = fileName().replace('mockup-bolsa', 'impresion-bolsa').replace(/\.png$/, '.svg');
+        a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      } catch (err) { alert('No se pudo generar el archivo: ' + err.message); }
+      btn.textContent = label; btn.disabled = false;
+    }, 30);
+  };
+
+  // ---------- export / share ----------
+  function fileName() {
+    const client = $('client').value.trim().replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]/g, '').replace(/\s+/g, '-');
+    return `mockup-bolsa${client ? '-' + client : ''}.png`;
+  }
+  function cleanBlob(cb) {
+    const edit = S.editCorners;
+    clearTimeout(uiTimer); showUI = false; S.editCorners = false; render();
+    cv.toBlob(blob => { S.editCorners = edit; render(); cb(blob); }, 'image/png');
+  }
+  $('export').onclick = () => cleanBlob(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = fileName();
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
+  // phones: share straight to WhatsApp & co.
+  if (navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] })) {
+    $('share').classList.remove('hidden');
+    $('share').onclick = () => cleanBlob(async blob => {
+      try { await navigator.share({ files: [new File([blob], fileName(), { type: 'image/png' })] }); } catch { }
+    });
+  }
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    navigator.serviceWorker.register('sw.js').catch(() => { });
+  }
+
+  resetPlacement();
+  if (MODELOS.length) selectModel(0); else update();
+})();
+</script>
+</body>
+</html>

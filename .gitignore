@@ -1,0 +1,9 @@
+# Material de trabajo local de cada herramienta: fotos originales, ejemplos de clientes
+# (con datos de contacto) y logos de prueba. Nunca se sube.
+**/referencias/
+_prueba*
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
