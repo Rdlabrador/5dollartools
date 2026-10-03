@@ -6,7 +6,7 @@ Herramientas fáciles y baratas. Cada herramienta vive en su propia carpeta y se
 | Herramienta | Carpeta | Para qué sirve |
 |---|---|---|
 | MyBags (conceptualizador de bolsas) | [`conceptualizador-bolsas/`](conceptualizador-bolsas/) | Muestra al cliente su logo impreso en la bolsa (mockup) y exporta el archivo de impresión en SVG a tamaño real. |
-| MyMugs (conceptualizador de tazas) — en desarrollo | [`conceptualizador-tazas/`](conceptualizador-tazas/) | Compone el diseño por capas (imágenes y texto), lo muestra sobre la taza en 3D y exporta la tira de sublimación a tamaño real, en espejo. |
+| MyMugs (conceptualizador de tazas) | [`conceptualizador-tazas/`](conceptualizador-tazas/) | Compone el diseño por capas (imágenes y texto), lo muestra sobre la taza en 3D y exporta la tira de sublimación a tamaño real, en espejo. |
 
 `comun/` guarda lo que comparten las herramientas (estilos, clientes y versiones, limpieza de imágenes, exportación).
 
