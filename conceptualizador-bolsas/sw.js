@@ -1,7 +1,7 @@
 // Offline support: the app shell is cached so it opens without internet.
 // Network first (so updates arrive as soon as you're online), cache as fallback.
 // Bump VERSION when publishing big changes to drop old caches.
-const VERSION = 'mybags-v7';
+const VERSION = 'mybags-v8';
 const FILES = [
   './', './index.html', './modelos.js', './lib/imagetracer.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',

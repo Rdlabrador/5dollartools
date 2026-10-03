@@ -263,7 +263,8 @@
         <div class="row"><span>Dirección</span><input type="text" id="c_dir" placeholder="Calle 123, Ciudad"></div>
         <div class="row"><span>Correo</span><input type="text" id="c_mail" placeholder="hola@tumarca.cl"></div>
         <div class="row"><span>Facebook</span><input type="text" id="c_fb" placeholder="TuMarca"></div>
-        <div class="row"><span>Posición</span><input type="range" id="cPos" min="0" max="1000" step="1"><output id="cPosO"></output></div>
+        <div class="row"><span>Posición X</span><input type="range" id="cPosX" min="0" max="1000" step="1"><output id="cPosXO"></output></div>
+        <div class="row"><span>Posición Y</span><input type="range" id="cPos" min="0" max="1000" step="1"><output id="cPosO"></output></div>
         <div class="row"><span>Tamaño</span><input type="range" id="cSize" min="40" max="250" value="100"><output id="cSizeO"></output></div>
         <div class="row"><span>Rotación</span><input type="range" id="cRot" min="-180" max="180" value="0"><output id="cRotO"></output></div>
         <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
@@ -530,7 +531,7 @@
     palette: null, paletteDirty: true, dims: null,
     clientId: null, clientName: '', designN: null, dirty: false, logoId: null, logoName: '',
     texture: true,
-    contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, rot: 0 },
+    contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, x: null, rot: 0 },
     cBox: null, editCorners: false,
   };
 
@@ -940,7 +941,7 @@
       const rw = row.reduce((s, r) => s + width(r) + sep * 2, 0) + width(it);
       if (row.length && (rw > maxW || row.length >= 3)) rows.push([it]); else row.push(it);
     }
-    const col = contactColor(), cx = D.box.x + D.box.w / 2, cy = S.contact.y;
+    const col = contactColor(), cx = contactCX(D), cy = S.contact.y;
     c.save();
     if (S.contact.rot && !flat) { c.translate(cx, cy); c.rotate(S.contact.rot * Math.PI / 180); c.translate(-cx, -cy); }
     c.fillStyle = col; c.strokeStyle = col; c.textBaseline = 'middle';
@@ -1109,7 +1110,10 @@
     const { box, quad } = design(), ar = S.proc.width / S.proc.height;
     S.w = quad ? Math.min(box.w * 0.72, box.h * 0.4 * ar) : Math.min(box.w * 0.8, box.h * 0.8 * ar);
   }
+  // strip centre X; null means "centred on the bag" (also what older saved designs have)
+  function contactCX(D = design()) { return S.contact.x != null ? S.contact.x : D.box.x + D.box.w / 2; }
   function placeContact() {
+    S.contact.x = null;
     const { box, quad } = design();
     S.contact.y = quad ? box.y + box.h * 0.86 : box.y + box.h * 0.92;
   }
@@ -1150,8 +1154,10 @@
   // keep logo & strip at the same spot relative to the bag face while the face's shape changes
   function keepRelative(change) {
     const D0 = design(), rel = [S.x / D0.w, S.y / D0.h, S.w / D0.w, S.contact.y / D0.h];
+    const cxRel = S.contact.x != null ? S.contact.x / D0.w : null;
     change();
     const D1 = design(); S.x = rel[0] * D1.w; S.y = rel[1] * D1.h; S.w = rel[2] * D1.w; S.contact.y = rel[3] * D1.h;
+    if (cxRel != null) S.contact.x = cxRel * D1.w;
   }
   const modelQuad = m => loadCorners()[m.archivo] || (m.area && m.area.quad) || [[0.12, 0.25], [0.88, 0.25], [0.88, 0.92], [0.12, 0.92]];
 
@@ -1205,6 +1211,8 @@
     $('rot').value = S.rot; $('rotO').textContent = S.rot + '°';
     $('posX').max = D.w; $('posX').value = Math.round(S.x); $('posXO').textContent = Math.round(S.x / D.w * 100) + '%';
     $('posY').max = D.h; $('posY').value = Math.round(S.y); $('posYO').textContent = Math.round(S.y / D.h * 100) + '%';
+    const ccx = contactCX(D);
+    $('cPosX').max = D.w; $('cPosX').value = Math.round(ccx); $('cPosXO').textContent = Math.round(ccx / D.w * 100) + '%';
     $('cPos').max = D.h; $('cPos').value = Math.round(S.contact.y); $('cPosO').textContent = Math.round(S.contact.y / D.h * 100) + '%';
     $('cRot').value = S.contact.rot || 0; $('cRotO').textContent = (S.contact.rot || 0) + '°';
   }
@@ -1406,6 +1414,7 @@
   $('posX').oninput = e => { S.x = +e.target.value; showGuide('logo'); liveUpdate(); };
   $('posY').oninput = e => { S.y = +e.target.value; showGuide('logo'); liveUpdate(); };
   $('cPos').oninput = e => { S.contact.y = +e.target.value; showGuide('contact'); liveUpdate(); };
+  $('cPosX').oninput = e => { S.contact.x = +e.target.value; showGuide('contact'); liveUpdate(); };
   $('op').oninput = e => { S.opacity = e.target.value / 100; update(); };
   $('blend').onchange = e => { S.blend = e.target.value; update(); };
   $('mode').onchange = e => { S.mode = e.target.value; processLogo(); update(); };
@@ -1494,7 +1503,7 @@
     else if (S.cBox) target = 'contact';
     if (!target) return;
     cv.setPointerCapture(e.pointerId); cv.focus();
-    drag = target === 'logo' ? { target, ox: dx - S.x, oy: dy - S.y } : { target, oy: dy - S.contact.y };
+    drag = target === 'logo' ? { target, ox: dx - S.x, oy: dy - S.y } : { target, ox: dx - contactCX(), oy: dy - S.contact.y };
     cv.style.cursor = 'grabbing'; guide = target; showUI = true; clearTimeout(uiTimer); render();
   });
   cv.addEventListener('pointermove', e => {
@@ -1516,15 +1525,13 @@
     if (drag.corner !== undefined) {
       const q = S.quadFrac.map(c => c.slice());
       q[drag.corner] = [clamp(p.x / cv.width, 0, 1), clamp(p.y / cv.height, 0, 1)];
-      // keep the logo at the same spot relative to the face while the face changes
-      const D0 = design(), rel = [S.x / D0.w, S.y / D0.h, S.w / D0.w, S.contact.y / D0.h];
-      setQuad(q);
-      const D1 = design(); S.x = rel[0] * D1.w; S.y = rel[1] * D1.h; S.w = rel[2] * D1.w; S.contact.y = rel[3] * D1.h;
+      // keep logo & strip at the same spot relative to the face while the face changes
+      keepRelative(() => setQuad(q));
       liveUpdate(); return;
     }
     const [dx, dy] = toDesignPt(p.x, p.y);
     if (drag.target === 'logo') { S.x = dx - drag.ox; S.y = dy - drag.oy; }
-    else S.contact.y = dy - drag.oy;
+    else { S.contact.x = dx - drag.ox; S.contact.y = dy - drag.oy; }
     liveUpdate();
   });
   const endDrag = e => {
@@ -1837,7 +1844,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       mode: 'ink', thr: 35, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
       texture: true, clip: true, ink2Auto: true,
     });
-    S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, rot: 0 };
+    S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, x: null, rot: 0 };
     // same client, same contact details: start from the last version's strip
     if (S.clientId) {
       const last = (await designsOf(S.clientId)).sort((a, b) => b.n - a.n)[0];
@@ -1873,7 +1880,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     }
     ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'removeBg', 'invert', 'texture']
       .forEach(k => { if (st[k] !== undefined) S[k] = st[k]; });
-    S.contact = { ...S.contact, ...st.contact, rot: st.contact.rot || 0 };
+    S.contact = { ...S.contact, ...st.contact, rot: st.contact.rot || 0, x: st.contact.x != null ? st.contact.x : null };
     S.palette = st.palette || null; S.paletteDirty = !st.palette;
     processLogo();
     S.designN = d.n;
