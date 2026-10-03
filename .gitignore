@@ -6,6 +6,8 @@ _prueba*
 # Solo locales: notas internas de trabajo y la carpeta antigua del proyecto
 /CLAUDE.md
 /PROMPT-SUITE.md
+/.claude/
+**/BRIEF.md
 /Conceptualizador de bolsas/
 
 # Sistema
