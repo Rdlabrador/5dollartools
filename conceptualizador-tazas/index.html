@@ -38,11 +38,14 @@
   .fbtn.on { border-color: var(--accent); background: var(--accent-soft); }
   .cats .btn { padding: 4px 9px; font-size: 12px; }
   .grp { margin-bottom: 6px; }
+  .aligns { margin: 2px 0 10px; }
+  .aligns .btn { padding: 6px 8px; line-height: 0; }
+  .aligns svg { width: 20px; height: 20px; display: block; }
   @media (max-width: 860px) {
     .tabs { display: flex; }
     #view3d { height: 40vh; flex: none; min-height: 0; border-radius: 0; }
     #cv { max-height: 40vh; }
-    body[data-stage="3d"] #cv, body[data-stage="plano"] #view3d, body[data-stage="plano"] .views { display: none; }
+    body[data-stage="3d"] #cv, body[data-stage="plano"] #view3d, body[data-stage="plano"] .views [data-v] { display: none; }
     .lrow button { padding: 9px 9px; }
     .fbtn { padding: 9px 4px; }
   }
@@ -125,6 +128,7 @@
         </div>
         <div class="row" id="inkRow"><span>Tinta</span><div class="swatches" id="inks"></div></div>
         <div class="row" id="ink2Row"><span>Tinta 2</span><div class="swatches" id="inks2"></div></div>
+        <label class="check" id="vecRow"><input type="checkbox" id="vec"> Vectorizar (logos de colores planos)</label>
         <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo de la imagen</label>
         <div class="row" id="thrRow"><span>Limpieza</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrO"></output></div>
         <div class="note" id="thrNote">Si la imagen sale con manchas o le falta detalle, mueve “Limpieza”.</div>
@@ -136,6 +140,8 @@
       <div class="row"><span>Posición Y</span><input type="range" id="posY" min="0" max="900" step="1"><output id="posYO"></output></div>
       <div class="row"><span>Rotación</span><input type="range" id="rot" min="-180" max="180" value="0"><output id="rotO"></output></div>
       <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
+      <div class="subh">Alinear <span id="alignHow"></span></div>
+      <div class="btns aligns" id="aligns"></div>
       <label class="check" id="repRow"><input type="checkbox" id="rep"> Repetir en el otro lado de la taza</label>
       <div class="btns">
         <button class="btn" id="center">Centrar</button>
@@ -155,8 +161,9 @@
       <div class="row"><span>Diámetro</span><input type="text" inputmode="decimal" id="mugD"><span style="width:auto">cm</span></div>
       <div class="sizeinfo" id="sizeInfo"></div>
       <label class="check"><input type="checkbox" id="mirror" checked> En espejo (para sublimar)</label>
-      <button class="btn" id="exportPrint" style="width:100%">Descargar archivo de impresión (PNG)</button>
-      <div class="note">La tira sale a tamaño real y a 300 dpi, lista para ponerla en tu hoja.</div>
+      <button class="btn primary" id="exportSvg" style="width:100%">Descargar archivo de impresión (SVG)</button>
+      <div class="note">Tira a tamaño real en mm, en curvas: textos y logos vectorizados, una capa por elemento. Ábrelo en CorelDRAW con <b>Archivo › Importar</b>. Las fotos van incrustadas como imagen.</div>
+      <button class="btn" id="exportPrint" style="width:100%">También en PNG (300 dpi)</button>
     </section>
 
     <section>
@@ -189,6 +196,7 @@
       <button class="btn" data-v="izq">Asa izquierda</button>
       <button class="btn" data-v="fre">Frente</button>
       <button class="btn" data-v="der">Asa derecha</button>
+      <button class="btn on" id="snapBtn" title="Al mover, la capa se pega al centro, a los bordes y a las otras capas">Imán</button>
     </div>
     <canvas id="cv" width="1400" height="660"></canvas>
     <div class="hint" id="hint"></div>
@@ -222,7 +230,7 @@
   const S = {
     model: { ...MODELOS[0] },
     colors: { body: '#f6f6f4', inside: '#f6f6f4', handle: '#f6f6f4' },
-    layout: 'der', layers: [], sel: null, dirty: false,
+    layout: 'der', layers: [], sel: null, multi: [], dirty: false,
   };
   const cam = { yaw: 0, pitch: 0.2, zoom: 1 };
   const D = () => ({ w: S.model.impW * U, h: S.model.impH * U });
@@ -238,6 +246,16 @@
     return { x, y: 0, w: layout === 'env' ? w : w / 2, h };
   }
   const sel = () => S.layers.find(l => l.id === S.sel) || null;
+  // several layers can be selected at once (Ctrl + click): S.multi holds their ids, S.sel is the main one
+  const isSel = l => l.id === S.sel || S.multi.includes(l.id);
+  const selected = () => S.layers.filter(isSel);
+  function toggleSel(l) {
+    let m = S.multi.length ? S.multi.slice() : S.sel ? [S.sel] : [];
+    m = m.includes(l.id) ? m.filter(i => i !== l.id) : [...m, l.id];
+    S.sel = m.includes(l.id) ? l.id : m[m.length - 1] || null;
+    S.multi = m.length > 1 ? m : [];
+  }
+  function pickOnly(l) { if (!S.multi.includes(l.id)) S.multi = []; S.sel = l.id; }
 
   // ---------- layers ----------
   // every layer ends up as a canvas (l.proc) drawn centred on (x, y), w wide, rotated
@@ -290,8 +308,9 @@
 
   // text: drawn letter by letter so it can follow an arc or a wave
   const measure = newCanvas(1, 1).getContext('2d');
-  function renderText(l) {
-    const px = clamp(Math.round(l.fs * 1.2), 16, 500);
+  // hi = font size in pixels to draw at, for tracing (the layer itself is left untouched)
+  function renderText(l, hi) {
+    const px = hi || clamp(Math.round(l.fs * 1.2), 16, 500);
     const font = `${l.peso || 400} ${px}px "${l.font}", sans-serif`;
     measure.font = font;
     const sp = px * (l.esp || 0) / 100;
@@ -323,15 +342,15 @@
         x.fillText(chr, 0, 0); x.restore();
       });
     });
-    l._px = px;
+    if (!hi) l._px = px;
     return trim(c);
   }
-  function renderContact(l) {
-    const px = clamp(Math.round(l.fs * 1.2), 12, 220);
+  function renderContact(l, hi) {
+    const px = hi || clamp(Math.round(l.fs * 1.2), 12, 220);
     const maxW = zone().w * 0.96 * px / l.fs;
     const c = newCanvas(Math.ceil(maxW * 1.5 + px * 6), Math.ceil(px * 2 * 6 + px * 2)), x = c.getContext('2d');
     const box = Suite.dibujarContacto(x, l.c, { fs: px, color: l.color, lines: l.lines, maxW, cx: c.width / 2, cy: c.height / 2 });
-    l._px = px;
+    if (!hi) l._px = px;
     return box ? trim(c) : null;
   }
   // (re)build a layer's canvas from its source and settings
@@ -383,11 +402,18 @@
     } else if (showUI) {
       c.strokeStyle = 'rgba(120,124,134,.8)'; c.lineWidth = 2 * px; c.setLineDash([8 * px, 8 * px]); c.strokeRect(0, 0, w, h);
     }
-    const l = sel();
-    if (showUI && l && l.proc && l.visible) {
+    if (showUI) selected().forEach(l => {
+      if (!l.proc || !l.visible) return;
       const pts = corners(l);
       c.setLineDash([]); c.strokeStyle = '#f5c400'; c.lineWidth = 4 * px; poly(pts);
       c.strokeStyle = '#111'; c.lineWidth = 2 * px; c.setLineDash([8 * px, 6 * px]); poly(pts);
+    });
+    // where the magnet caught
+    if (snapLines && drag) {
+      c.setLineDash([]); c.strokeStyle = '#ff2fa8'; c.lineWidth = 2.5 * px; c.beginPath();
+      if (snapLines.x != null) { c.moveTo(snapLines.x, 0); c.lineTo(snapLines.x, h); }
+      if (snapLines.y != null) { c.moveTo(0, snapLines.y); c.lineTo(w, snapLines.y); }
+      c.stroke();
     }
     c.restore();
   }
@@ -584,7 +610,7 @@
     const t = hi + d; if (t < 0 || t >= hist.length) return;
     hi = t;
     const s = hist[hi].s, newMug = JSON.stringify(s.model) !== JSON.stringify(S.model);
-    S.model = { ...s.model }; S.colors = { ...s.colors }; S.layout = s.layout; S.layers = s.layers.map(cloneLayer); S.sel = s.sel;
+    S.model = { ...s.model }; S.colors = { ...s.colors }; S.layout = s.layout; S.layers = s.layers.map(cloneLayer); S.sel = s.sel; S.multi = [];
     if (newMug) buildMug(); else applyColors();
     syncDims(); renderModels(); syncControls(); renderLayers(); render(); showSizes(); S.dirty = true;
     app.historial(hi > 0, hi < hist.length - 1);
@@ -598,6 +624,51 @@
     const w = l.type === 'contact' ? Math.min(l.w, z.w * 0.9) : Math.min(z.w * 0.7, z.h * (l.type === 'text' ? 0.3 : 0.72) * ar);
     scaleLayer(l, w / l.w);
     if (l.type !== 'img') rebuild(l);
+  }
+
+  // ---------- align & magnet ----------
+  const boxOf = ls => bounds(ls.flatMap(corners));
+  // one layer: against its zone. Several selected: against each other
+  function align(mode) {
+    const ls = selected().filter(l => l.proc); if (!ls.length) return;
+    const ref = ls.length > 1 ? boxOf(ls) : zone();
+    ls.forEach(l => {
+      const b = bounds(corners(l));
+      if (mode === 'l') l.x += ref.x - b.x;
+      if (mode === 'c') l.x += ref.x + ref.w / 2 - (b.x + b.w / 2);
+      if (mode === 'r') l.x += ref.x + ref.w - (b.x + b.w);
+      if (mode === 't') l.y += ref.y - b.y;
+      if (mode === 'm') l.y += ref.y + ref.h / 2 - (b.y + b.h / 2);
+      if (mode === 'b') l.y += ref.y + ref.h - (b.y + b.h);
+    });
+    showGuide(); update();
+  }
+  [['l', 'Alinear a la izquierda'], ['c', 'Centrar a lo ancho'], ['r', 'Alinear a la derecha'], ['t', 'Alinear arriba'], ['m', 'Centrar a lo alto'], ['b', 'Alinear abajo']].forEach(([m, title], i) => {
+    // icon: a guide line and two bars resting on it (or centred on it)
+    const pos = [3, 10, 17][i % 3], bar = (len, at) => { const s = i % 3 === 0 ? pos + 2 : i % 3 === 1 ? pos - len / 2 : pos - 2 - len; return i < 3 ? `<rect x="${s}" y="${at}" width="${len}" height="4"/>` : `<rect y="${s}" x="${at}" height="${len}" width="4"/>`; };
+    const line = i < 3 ? `<rect x="${pos - 0.75}" y="1" width="1.5" height="18"/>` : `<rect y="${pos - 0.75}" x="1" height="1.5" width="18"/>`;
+    const b = document.createElement('button'); b.className = 'btn'; b.title = title; b.setAttribute('aria-label', title);
+    b.innerHTML = `<svg viewBox="0 0 20 20" fill="currentColor">${line}${bar(12, 4.5)}${bar(7, 11.5)}</svg>`;
+    b.onclick = () => align(m);
+    $('aligns').append(b);
+  });
+  // magnet: while dragging, the moved layers stick to the centre and edges of the zone and of the
+  // strip, and to the centre and edges of the other layers
+  let snapOn = true, snapLines = null;
+  $('snapBtn').onclick = () => { snapOn = !snapOn; $('snapBtn').classList.toggle('on', snapOn); };
+  function snapDelta(ls, thr) {
+    const b = boxOf(ls), z = zone(), d = D();
+    const others = S.layers.filter(l => l.visible && l.proc && !ls.includes(l)).map(l => bounds(corners(l)));
+    const tx = [z.x + z.w / 2, z.x, z.x + z.w, d.w / 2, 0, d.w, ...others.flatMap(o => [o.x + o.w / 2, o.x, o.x + o.w])];
+    const ty = [d.h / 2, 0, d.h, ...others.flatMap(o => [o.y + o.h / 2, o.y, o.y + o.h])];
+    const best = (cands, targets) => {
+      let bd = thr, r = null;
+      for (const c of cands) for (const t of targets) { const dd = Math.abs(t - c); if (dd < bd) { bd = dd; r = { d: t - c, at: t }; } }
+      return r;
+    };
+    const sx = best([b.x + b.w / 2, b.x, b.x + b.w], tx), sy = best([b.y + b.h / 2, b.y, b.y + b.h], ty);
+    snapLines = { x: sx ? sx.at : null, y: sy ? sy.at : null };
+    return [sx ? sx.d : 0, sy ? sy.d : 0];
   }
 
   // ---------- UI: models ----------
@@ -687,34 +758,40 @@
     if (!S.layers.length) { box.innerHTML = '<div class="note">Agrega una imagen o un texto para empezar. Lo de arriba en la lista tapa a lo de abajo.</div>'; return; }
     [...S.layers].reverse().forEach(l => {
       const i = S.layers.indexOf(l), row = document.createElement('div');
-      row.className = 'lrow' + (l.id === S.sel ? ' on' : '') + (l.visible ? '' : ' off');
+      row.className = 'lrow' + (isSel(l) ? ' on' : '') + (l.visible ? '' : ' off');
       row.innerHTML = `<button title="${l.visible ? 'Ocultar' : 'Mostrar'}">${l.visible ? '●' : '○'}</button>
         <button class="lname"><span class="tag">${TAGS[l.type]}</span>${esc(layerName(l))}</button>
         <button title="Subir">▲</button><button title="Bajar">▼</button><button title="Duplicar">⧉</button><button title="Eliminar">✕</button>`;
       const [eye, name, up, down, dup, del] = row.querySelectorAll('button');
       eye.onclick = () => { l.visible = !l.visible; update(); };
-      name.onclick = () => { S.sel = l.id; showGuide(); update(); };
+      name.onclick = e => { if (e.ctrlKey || e.shiftKey || e.metaKey) toggleSel(l); else { S.multi = []; S.sel = l.id; } showGuide(); update(); };
       up.onclick = () => { if (i < S.layers.length - 1) { S.layers.splice(i, 1); S.layers.splice(i + 1, 0, l); update(); } };
       down.onclick = () => { if (i > 0) { S.layers.splice(i, 1); S.layers.splice(i - 1, 0, l); update(); } };
       dup.onclick = () => {
         const c = { ...l, id: newId(), x: l.x + 60, y: l.y + 60 };
         if (l.o) c.o = { ...l.o, palette: l.o.palette && l.o.palette.map(p => ({ ...p })) };
         if (l.c) c.c = { ...l.c };
-        rebuild(c); S.layers.push(c); S.sel = c.id; showGuide(); update();
+        rebuild(c); S.layers.push(c); S.sel = c.id; S.multi = []; showGuide(); update();
       };
-      del.onclick = () => { S.layers.splice(i, 1); if (S.sel === l.id) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null; update(); };
+      del.onclick = () => removeLayers([l]);
       box.append(row);
     });
   }
-  function addLayer(l) { S.layers.push(l); S.sel = l.id; showGuide(); update(); }
+  function removeLayers(ls) {
+    S.layers = S.layers.filter(l => !ls.includes(l)); S.multi = [];
+    if (!sel()) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
+    update();
+  }
+  function addLayer(l) { S.layers.push(l); S.sel = l.id; S.multi = []; showGuide(); update(); }
 
   async function addImage(file) {
     if (!file || !file.type.startsWith('image/')) return;
     let img; try { img = await loadImage(file); } catch { alert('No se pudo abrir esa imagen.'); return; }
+    const logo = Suite.fondoUniforme(img);   // flat background → a logo: clean it and vectorise it; otherwise a photo
     const l = {
       id: newId(), type: 'img', name: file.name, visible: true, img, imgId: null, x: 0, y: 0, w: 400, rot: 0, opacity: 1,
       // photos keep their background; logos on a flat background lose it
-      o: { mode: 'color', thr: 35, removeBg: Suite.fondoUniforme(img), invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: 2400 },
+      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096 },
     };
     rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
   }
@@ -785,7 +862,8 @@
       box.append(b);
     });
   }
-  $('mode').onchange = onSel((l, e) => { l.o.mode = e.target.value; rebuild(l); update(); });
+  $('mode').onchange = onSel((l, e) => { l.o.mode = e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
+  $('vec').onchange = onSel((l, e) => { l.o.vector = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
   $('thr').oninput = onSel((l, e) => { l.o.thr = +e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
   $('rmBg').onchange = onSel((l, e) => { l.o.removeBg = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
   $('invert').onchange = onSel((l, e) => { l.o.invert = e.target.checked; rebuild(l); update(); });
@@ -823,7 +901,7 @@
     $('capaCtl').classList.toggle('hidden', !l);
     $('layout').value = S.layout;
     markSw($('colBody'), S.colors.body); markSw($('colInside'), S.colors.inside); markSw($('colHandle'), S.colors.handle);
-    $('hint').innerHTML = '<span class="hint-desk">Arrastra una capa para moverla · arrastra fuera para girar la taza · Ctrl + rueda cambia el tamaño · flechas para ajuste fino</span>'
+    $('hint').innerHTML = '<span class="hint-desk">Arrastra una capa para moverla · arrastra fuera para girar la taza · Ctrl + clic selecciona varias · Ctrl + rueda cambia el tamaño · flechas para ajuste fino</span>'
       + '<span class="hint-touch">Un dedo mueve la capa o gira la taza · dos dedos agrandan y giran</span>';
     if (!l) return;
     $('gText').classList.toggle('hidden', t !== 'text');
@@ -846,6 +924,7 @@
       const o = l.o, ink = o.mode !== 'color';
       $('mode').value = o.mode; $('thr').value = o.thr; $('thrO').textContent = o.thr;
       $('rmBg').checked = o.removeBg; $('invert').checked = o.invert;
+      $('vec').checked = !!o.vector; $('vecRow').classList.toggle('hidden', ink);
       $('inkRow').classList.toggle('hidden', !ink);
       $('ink2Row').classList.toggle('hidden', o.mode !== 'ink2');
       $('palRow').classList.toggle('hidden', !ink || !o.palette || o.palette.length < 2);
@@ -858,6 +937,7 @@
       if (sig !== lastSig) { lastSig = sig; renderPalette(l); }
     }
     $('op').value = Math.round(l.opacity * 100); $('opO').textContent = Math.round(l.opacity * 100) + '%';
+    $('alignHow').textContent = S.multi.length > 1 ? `· ${S.multi.length} capas entre sí` : '· dentro de la zona';
     $('rep').checked = !!l.rep; $('repRow').classList.toggle('hidden', S.layout === 'dos');
     $('fill').classList.toggle('hidden', t !== 'img');
     syncTransform();
@@ -880,7 +960,8 @@
       if (l.type === 'img') {
         // pixels the image really has for the size it is printed at
         const dpi = Math.round(l.proc.width / (l.w / U / 25.4));
-        lines.push(dpi < 150 ? `⚠ <b>Calidad baja: ${dpi} dpi.</b> A este tamaño se verá pixelada; achícala o pide la imagen en mayor tamaño.`
+        if (l.o.mode !== 'color' || l.o.vector) lines.push('<b>Calidad:</b> vectorizada, nítida a cualquier tamaño');
+        else lines.push(dpi < 150 ? `⚠ <b>Calidad baja: ${dpi} dpi.</b> A este tamaño se verá pixelada; achícala o pide la imagen en mayor tamaño.`
           : `<b>Calidad:</b> ${dpi} dpi${dpi < 250 ? ' (aceptable)' : ' (buena)'}`);
       }
     }
@@ -888,7 +969,7 @@
     if (g.ox < 60) lines.push('⚠ La impresión es más ancha que el espacio que deja el asa: revisa el ancho o el diámetro.');
     if (g.oy < 0) lines.push('⚠ La impresión es más alta que la taza: revisa las medidas.');
     $('sizeInfo').innerHTML = lines.join('<br>');
-    $('exportPrint').disabled = !S.layers.some(x => x.proc && x.visible);
+    $('exportPrint').disabled = $('exportSvg').disabled = !S.layers.some(x => x.proc && x.visible);
   }
   const parseCm = v => { const n = parseFloat(String(v).replace(',', '.')); return n > 1 && n < 100 ? n : null; };
   const DIM_FIELDS = [['dimW', 'impW'], ['dimH', 'impH'], ['mugH', 'alto'], ['mugD', 'diam']];
@@ -948,10 +1029,12 @@
       // on the flat canvas, like in MyBags, dragging anywhere moves the selected layer
       if (!l && !is3d && p && sel() && sel().proc) l = sel();
       if (l) {
-        const changed = S.sel !== l.id; S.sel = l.id;
-        drag = { layer: l, dx, ox: p.x - dx - l.x, oy: p.y - l.y };
+        const was = S.sel + '|' + S.multi.join();
+        // Ctrl / Shift + click adds the layer to the selection (or takes it out)
+        if (h && (e.ctrlKey || e.shiftKey || e.metaKey)) toggleSel(l); else pickOnly(l);
+        if (isSel(l)) drag = { layer: l, dx, p0: { x: p.x - dx, y: p.y }, group: selected().map(g => ({ l: g, x: g.x, y: g.y })) };
         showUI = true; clearTimeout(uiTimer);
-        if (changed) { syncControls(); renderLayers(); }
+        if (was !== S.sel + '|' + S.multi.join()) { syncControls(); renderLayers(); }
         render();
       } else if (is3d) drag = { orbit: true, x: e.clientX, y: e.clientY, yaw: cam.yaw, pitch: cam.pitch };
       el.style.cursor = 'grabbing'; el.focus && el.focus({ preventScroll: true });
@@ -973,7 +1056,15 @@
         scheduleCamera(); return;
       }
       const p = pick(e); if (!p) return;
-      drag.layer.x = p.x - drag.dx - drag.ox; drag.layer.y = p.y - drag.oy;
+      const mx = p.x - drag.dx - drag.p0.x, my = p.y - drag.p0.y;
+      drag.group.forEach(g => { g.l.x = g.x + mx; g.l.y = g.y + my; });
+      snapLines = null;
+      if (snapOn && !e.altKey) {
+        // the magnet reaches about 8 screen pixels
+        const thr = is3d ? 30 : clamp(8 / (flatMap().k * cv.getBoundingClientRect().width / cv.width), 12, 60);
+        const [ax, ay] = snapDelta(drag.group.map(g => g.l), thr);
+        drag.group.forEach(g => { g.l.x += ax; g.l.y += ay; });
+      }
       liveUpdate();
     });
     const end = e => {
@@ -981,7 +1072,7 @@
       // lifting one finger of a pinch ends the gesture (no jump back to one-finger drag)
       if (drag && (drag.pinch || drag.zoom) && ptrs.size) { const was = drag.pinch; drag = null; if (was) { live = false; sharpen(); showGuide(); render(); } return; }
       if (!drag) return;
-      const moved = drag.layer; drag = null; el.style.cursor = 'grab';
+      const moved = drag.layer; drag = null; snapLines = null; el.style.cursor = 'grab';
       if (moved) { live = false; sharpen(); showGuide(); render(); syncTransform(); showSizes(); }
     };
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
@@ -993,10 +1084,11 @@
       else if (is3d && !e.ctrlKey) { e.preventDefault(); cam.zoom = clamp(cam.zoom * k, 0.6, 2.6); scheduleCamera(); }
     }, { passive: false });
     el.addEventListener('keydown', e => {
-      const l = sel(); if (!l) return;
+      const ls = selected(); if (!ls.length) return;
+      if (e.key === 'Delete') { e.preventDefault(); removeLayers(ls); return; }
       const step = e.shiftKey ? 50 : 10;
       const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
-      if (d) { e.preventDefault(); l.x += d[0]; l.y += d[1]; showGuide(); liveUpdate(); }
+      if (d) { e.preventDefault(); ls.forEach(l => { l.x += d[0]; l.y += d[1]; }); showGuide(); liveUpdate(); }
     });
     // drop an image straight onto the mug or the canvas
     el.addEventListener('dragover', e => e.preventDefault());
@@ -1010,7 +1102,7 @@
     document.querySelectorAll('.tabs .btn').forEach(b => b.classList.toggle('on', b.dataset.s === s));
     resize3d(); render();
   }
-  document.querySelectorAll('#views .btn').forEach(b => { b.onclick = () => { cam.yaw = VIEWS[b.dataset.v](); cam.pitch = 0.2; cam.zoom = 1; scheduleCamera(); }; });
+  document.querySelectorAll('#views [data-v]').forEach(b => { b.onclick = () => { cam.yaw = VIEWS[b.dataset.v](); cam.pitch = 0.2; cam.zoom = 1; scheduleCamera(); }; });
 
   // ---------- photos & print file ----------
   const BGS = { oscuro: ['#3a3d45', '#22242a'], claro: ['#f4f4f6', '#d5d6db'], blanco: ['#ffffff', '#ffffff'] };
@@ -1057,6 +1149,52 @@
     drawStrip(x);
     return c;
   }
+  // the same strip as curves: an SVG in real millimetres, one group per layer
+  const r3 = v => +v.toFixed(3);
+  function layerVector(l) {
+    if (l.type === 'img') {
+      const w = l.proc.width, hh = l.proc.height;
+      if (l.o.mode === 'color' && !l.o.vector) return { w, h: hh, body: `<image width="${w}" height="${hh}" href="${l.proc.toDataURL('image/png')}"/>` };
+      return { w, h: hh, body: Suite.capasVector(l.img, l.o).map(c => `<path id="${c.id}" fill="${c.fill}" fill-rule="evenodd" d="${c.d}"><title>${esc(c.label)}</title></path>`).join('') };
+    }
+    // text and contact strips are drawn very large and traced: they travel as curves, no fonts needed
+    const big = l.type === 'text' ? renderText(l, 480) : renderContact(l, 200);
+    const d = big && Suite.vectorizar(big, { max: 4800 });
+    return d ? { w: big.width, h: big.height, body: `<path fill="${l.color}" fill-rule="evenodd" d="${d}"/>` } : null;
+  }
+  function buildSVG(mirror) {
+    const { w, h } = D(), m = S.model;
+    const items = S.layers.filter(l => l.visible && l.proc).map((l, i) => {
+      const v = layerVector(l); if (!v) return null;
+      const k = l.w / v.w, id = `Capa_${i + 1}_` + (Suite.nombreArchivo(l.type === 'img' ? l.name.replace(/\.\w+$/, '') : l.type === 'text' ? l.text.split('\n')[0] : 'franja').slice(0, 24) || l.type);
+      const place = dx => `translate(${r3(l.x + dx)} ${r3(l.y)}) rotate(${r3(l.rot)}) scale(${+k.toFixed(6)}) translate(${r3(-v.w / 2)} ${r3(-v.h / 2)})`;
+      return { l, v, id, place };
+    }).filter(Boolean);
+    const pass = (dx, clip, suf) => `<g clip-path="url(#${clip})">\n` + items.map(it =>
+      `<g id="${it.id}${suf}"${it.l.opacity < 1 ? ` opacity="${r3(it.l.opacity)}"` : ''}>` + copies(it.l).map(o => `<g transform="${it.place(dx + o)}">${it.v.body}</g>`).join('') + '</g>').join('\n') + '\n</g>';
+    const body = S.layout === 'dos' ? pass(0, 'izq', '') + '\n' + pass(w / 2, 'der', '_copia') : pass(0, 'tira', '');
+    const title = `Taza ${m.nombre} ${m.impW / 10}x${m.impH / 10} cm${app.cliente ? ' - ' + app.cliente.nombre : ''}${mirror ? ' (espejo)' : ''}`;
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${r3(w / U)}mm" height="${r3(h / U)}mm" viewBox="0 0 ${w} ${h}">
+<title>${esc(title)}</title>
+<defs><clipPath id="tira"><rect width="${w}" height="${h}"/></clipPath><clipPath id="izq"><rect width="${w / 2}" height="${h}"/></clipPath><clipPath id="der"><rect x="${w / 2}" width="${w / 2}" height="${h}"/></clipPath></defs>
+<g id="Impresion"${mirror ? ` transform="translate(${w} 0) scale(-1 1)"` : ''}>
+${body}
+</g>
+</svg>
+`;
+  }
+  $('exportSvg').onclick = () => {
+    const btn = $('exportSvg'), label = btn.textContent, mirror = $('mirror').checked, m = S.model;
+    btn.textContent = 'Vectorizando…'; btn.disabled = true;
+    setTimeout(() => {
+      try {
+        Suite.descargar(new Blob([buildSVG(mirror)], { type: 'image/svg+xml' }),
+          `impresion-taza${clientSuffix()}-${String(m.impW / 10).replace('.', ',')}x${String(m.impH / 10).replace('.', ',')}cm${mirror ? '-espejo' : ''}.svg`);
+      } catch (err) { alert('No se pudo generar el archivo: ' + err.message); }
+      btn.textContent = label; btn.disabled = false;
+    }, 30);
+  };
   $('exportPrint').onclick = () => {
     const mirror = $('mirror').checked, m = S.model;
     printCanvas(mirror).toBlob(async b => {
@@ -1072,7 +1210,7 @@
     nombre: 'MyMugs', id: 'conceptualizador-tazas', sufijo: 'tazas', db,
     hooks: {
       async nuevo() {
-        S.layers = []; S.sel = null; S.layout = 'der';
+        S.layers = []; S.sel = null; S.multi = []; S.layout = 'der';
         lookAtZone(); syncDims(); renderModels(); update(); histReset();
       },
       async abrir(d) {
@@ -1089,7 +1227,7 @@
           } else if (l.type === 'text') await fontReady(l);
           rebuild(l); S.layers.push(l);
         }
-        S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
+        S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null; S.multi = [];
         if (st.cam) Object.assign(cam, st.cam); else lookAtZone();
         syncDims(); renderModels(); update(); histReset();
       },
@@ -1130,7 +1268,7 @@
   renderFonts(); syncDims(); renderModels(); setStage('3d'); update(); S.dirty = false;
   db.all('modelos').then(list => { list.sort((a, b) => a.creado - b.creado).forEach(m => MODELOS.push({ ...m, local: true })); renderModels(); });
   // lets the automated tests drive the editor
-  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, paints: () => paintCount, hist: () => [hi, hist.length] };
+  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, buildSVG, align, snapDelta, selected, paints: () => paintCount, hist: () => [hi, hist.length] };
   app.iniciar();
 })();
 </script>

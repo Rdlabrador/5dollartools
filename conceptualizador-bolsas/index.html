@@ -252,6 +252,8 @@
       <label class="check" id="clipRow"><input type="checkbox" id="clip" checked> Recortar logo al área de la bolsa</label>
       <div class="btns">
         <button class="btn" id="center">Centrar</button>
+        <button class="btn" id="centerH" title="Centrar a lo ancho">Centrar ↔</button>
+        <button class="btn" id="centerV" title="Centrar a lo alto">Centrar ↕</button>
         <button class="btn" id="fit">Tamaño sugerido</button>
         <button class="btn" id="rot0">Rotación 0°</button>
       </div>
@@ -272,6 +274,7 @@
         <div class="row"><span>Tamaño</span><input type="range" id="cSize" min="40" max="250" value="100"><output id="cSizeO"></output></div>
         <div class="row"><span>Rotación</span><input type="range" id="cRot" min="-180" max="180" value="0"><output id="cRotO"></output></div>
         <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
+        <div class="btns"><button class="btn" id="cCenter" title="Centrar la franja a lo ancho">Centrar franja ↔</button></div>
       </div>
     </section>
 
@@ -293,12 +296,13 @@
 
   <div class="stage">
     <canvas id="cv" width="1000" height="1000"></canvas>
+    <button class="btn on" id="snapBtn" title="Al mover, el logo y la franja se pegan al centro y a los bordes">Imán</button>
     <div class="hint" id="hint"></div>
   </div>
 </main>
 
 <script src="modelos.js"></script>
-<script src="lib/imagetracer.js"></script>
+<script src="../comun/suite.js"></script>
 <script>
 (() => {
   // ---------- helpers ----------
@@ -1066,6 +1070,14 @@
       c.strokeStyle = '#f5c400'; c.lineWidth = 4; strokePoly(c, pts);
       c.strokeStyle = '#111'; c.lineWidth = 2; c.setLineDash([8, 6]); strokePoly(c, pts);
     }
+    // where the magnet caught
+    if (snapLines && drag) {
+      const D = design(), seg = (x0, y0, x1, y1) => { const a = toCanvasPt(x0, y0), b = toCanvasPt(x1, y1); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); };
+      c.setLineDash([]); c.strokeStyle = '#ff2fa8'; c.lineWidth = 2.5; c.beginPath();
+      if (snapLines.x != null) seg(snapLines.x, 0, snapLines.x, D.h);
+      if (snapLines.y != null) seg(0, snapLines.y, D.w, snapLines.y);
+      c.stroke();
+    }
     c.restore();
   }
   function drawCornerEditor(c) {
@@ -1483,6 +1495,34 @@
   $('texture').onchange = e => { S.texture = e.target.checked; update(); };
   $('clip').onchange = e => { S.clip = e.target.checked; update(); };
   $('center').onclick = () => { centerLogo(); showGuide('logo'); update(); };
+  $('centerH').onclick = () => { const b = design().box; S.x = b.x + b.w / 2; showGuide('logo'); update(); };
+  $('centerV').onclick = () => { const b = design().box; S.y = b.y + b.h / 2; showGuide('logo'); update(); };
+  $('cCenter').onclick = () => { S.contact.x = null; showGuide('contact'); update(); };
+
+  // magnet: while dragging, logo and strip stick to the centre and edges of the print area, and to each other
+  let snapOn = true, snapLines = null;
+  $('snapBtn').onclick = () => { snapOn = !snapOn; $('snapBtn').classList.toggle('on', snapOn); };
+  function snap(target) {
+    snapLines = null;
+    if (!snapOn) return;
+    const b = design().box, cx = b.x + b.w / 2, cy = b.y + b.h / 2, thr = 14;
+    const best = (cands, targets) => {
+      let bd = thr, r = null;
+      for (const c of cands) for (const t of targets) { const dd = Math.abs(t - c); if (dd < bd) { bd = dd; r = { d: t - c, at: t }; } }
+      return r;
+    };
+    let sx, sy;
+    if (target === 'logo') {
+      const m = bounds(logoCorners()), tx = [cx, b.x, b.x + b.w];
+      if (S.cBox) tx.push(contactCX());
+      sx = best([m.x + m.w / 2, m.x, m.x + m.w], tx); sy = best([m.y + m.h / 2, m.y, m.y + m.h], [cy, b.y, b.y + b.h]);
+      if (sx) S.x += sx.d; if (sy) S.y += sy.d;
+    } else {
+      sx = best([S.contact.x], S.proc ? [cx, S.x] : [cx]); sy = best([S.contact.y], [cy]);
+      if (sx) S.contact.x += sx.d; if (sy) S.contact.y += sy.d;
+    }
+    snapLines = { x: sx ? sx.at : null, y: sy ? sy.at : null };
+  }
   $('fit').onclick = () => { fitLogo(); showGuide('logo'); update(); };
   $('rot0').onclick = () => { S.rot = 0; update(); };
 
@@ -1591,6 +1631,7 @@
     const [dx, dy] = toDesignPt(p.x, p.y);
     if (drag.target === 'logo') { S.x = dx - drag.ox; S.y = dy - drag.oy; }
     else { S.contact.x = dx - drag.ox; S.contact.y = dy - drag.oy; }
+    if (!e.altKey) snap(drag.target); else snapLines = null;
     liveUpdate();
   });
   const endDrag = e => {
@@ -1599,7 +1640,7 @@
     if (drag && drag.pinch && touches.size) { drag = null; return; }
     if (!drag) return;
     const wasCorner = drag.corner !== undefined;
-    drag = null; cv.style.cursor = 'grab'; live = false;
+    drag = null; snapLines = null; cv.style.cursor = 'grab'; live = false;
     if (wasCorner) { syncControls(); render(); } else { showGuide(); render(); }
   };
   cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
@@ -1672,32 +1713,11 @@
     }
   }
 
-  // vectorise a mask canvas (anything opaque = ink) into SVG path data, in the mask's pixel units
+  // vectorise a mask canvas (anything opaque = ink) into SVG path data, in the mask's pixel units.
+  // The tracer is the suite's shared one (comun/suite.js): smooth curves, sharp corners
   function traceMask(mask) {
-    const u = Math.min(2, 2400 / Math.max(mask.width, mask.height));   // upscale a bit for smoother curves
-    const w = Math.round(mask.width * u), h = Math.round(mask.height * u);
-    const c = newCanvas(w, h), x = c.getContext('2d');
-    x.imageSmoothingQuality = 'high'; x.drawImage(mask, 0, 0, w, h);
-    const img = x.getImageData(0, 0, w, h), p = img.data;
-    let any = false;
-    for (let i = 0; i < p.length; i += 4) {
-      const on = p[i + 3] > 127; any = any || on;
-      p[i] = p[i + 1] = p[i + 2] = on ? 0 : 255; p[i + 3] = 255;
-    }
-    if (!any) return null;
-    const opts = {
-      ltres: 0.5, qtres: 0.5, pathomit: 6, rightangleenhance: false, colorsampling: 0, numberofcolors: 2,
-      colorquantcycles: 1, mincolorratio: 0, blurradius: 0, strokewidth: 0, linefilter: false, roundcoords: -1, scale: 1,
-      pal: [{ r: 0, g: 0, b: 0, a: 255 }, { r: 255, g: 255, b: 255, a: 255 }],
-    };
-    const td = ImageTracer.imagedataToTracedata(img, opts);
-    const paths = [];
-    td.layers[0].forEach((pth, i) => {
-      if (pth.isholepath) return;
-      const m = ImageTracer.svgpathstring(td, 0, i, opts).match(/ d="([^"]+)"/);
-      if (m) paths.push(m[1].trim().replace(/-?\d+\.\d+/g, v => (+v).toFixed(2)));
-    });
-    return { d: paths.join(' '), scale: 1 / u };
+    const d = Suite.vectorizar(mask);
+    return d ? { d, scale: 1 } : null;
   }
 
   const inkName = hex => (INKS.find(([, c]) => c.toLowerCase() === hex.toLowerCase()) || [hex])[0];

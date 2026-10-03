@@ -87,13 +87,13 @@ window.Suite = (() => {
 
   // colour separation (what a print shop does by hand): the image's main colours are found
   // automatically; each one is then printed as ink, halftone ("trama") or left as bare paper.
-  function extractPalette(p, f, bg) {
+  function extractPalette(p, f, bg, maxColors = 6) {
     const pts = [], step = Math.max(1, Math.floor(f.length / 40000));
     for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) { const i = k * 4; pts.push([p[i], p[i + 1], p[i + 2]]); }
     if (!pts.length) return [];
     // farthest-point seeds, then k-means
     let cs = [pts.reduce((m, c) => lumRGB(c) < lumRGB(m) ? c : m, pts[0])];
-    while (cs.length < 6) {
+    while (cs.length < maxColors) {
       let best = null, bd = 0;
       for (const c of pts) { const d = Math.min(...cs.map(q => d2rgb(c, q))); if (d > bd) { bd = d; best = c; } }
       if (!best || bd < 50 * 50) break;
@@ -162,12 +162,15 @@ window.Suite = (() => {
   // o = { mode: 'color' | 'ink' | 'ink2', thr, removeBg, invert, ink, ink2, ink2Auto, palette, paletteDirty, fondo: [r,g,b], max: longest side in px }
   // o.palette is filled in here. With sep = 'ink' | 'ink2' | 'trama' it returns that ink alone
   // as a solid mask with the same size/crop (used for layered print files).
+  // o.vector (with mode 'color'): the image is reduced to its flat colours, as it will be once
+  // vectorised; sep = { stack: k } then returns the mask of colour k plus every colour above it.
   function limpiarImagen(img, o, sep) {
     let w = img.naturalWidth || img.width || 1000, h = img.naturalHeight || img.height || 1000;
     // cap huge images, upscale tiny ones (e.g. small SVGs) so they stay crisp
     const max = Math.max(w, h), cap = o.max || 1600, kk = max > cap ? cap / max : max < 600 ? 600 / max : 1;
     w = Math.round(w * kk); h = Math.round(h * kk);
     const c = newCanvas(w, h), x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high';
     x.drawImage(img, 0, 0, w, h);
     const d = x.getImageData(0, 0, w, h), p = d.data, n = w * h;
 
@@ -194,10 +197,11 @@ window.Suite = (() => {
     }
     if (x1 < 0) { x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1; }
 
-    if (o.mode !== 'color') {
+    const flat = o.mode === 'color' && !!o.vector;
+    if (o.mode !== 'color' || flat) {
       if (o.paletteDirty || !o.palette) {
         // keep the user's choices for colours that are still there after re-cleaning
-        const old = o.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb);
+        const old = o.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb, flat ? 12 : 6);
         defaultRoles(pal, o.fondo || [255, 255, 255]);
         pal.forEach(q => {
           const prev = old.find(v => d2rgb(v.rgb, q.rgb) < 40 * 40);
@@ -225,7 +229,8 @@ window.Suite = (() => {
             if (dd < bd) { bd = dd; bi = j; }
           }
           const role = pal[bi][roleKey], xx = k % w;
-          if (sep) a = role === sep ? f[k] : 0;
+          if (flat) { col = pal[bi].rgb; a = sep ? (bi >= sep.stack ? f[k] : 0) : f[k]; }
+          else if (sep) a = role === sep ? f[k] : 0;
           else if (role === 'ink') a = f[k];
           else if (role === 'ink2') { a = f[k]; col = ink2; }
           else if (role === 'trama') a = f[k] * dot(xx, (k - xx) / w);
@@ -248,6 +253,190 @@ window.Suite = (() => {
     return out;
   }
   const ROLE_NAMES = { ink: 'Tinta', trama: 'Trama', paper: 'Papel', ink2: 'Tinta 2' };
+
+  // ---------- vectoriser ----------
+  // Turns a canvas (alpha = where there is ink) into smooth SVG path data, in the canvas' pixel units.
+  // 1) the edge is found *between* pixels (marching squares on the soft alpha, lightly smoothed),
+  //    so it does not copy the pixel staircase; 2) corners are kept sharp; 3) everything between
+  //    two corners is fitted with as few Bézier curves as the tolerance allows.
+  function vectorizar(src, o = {}) {
+    const u = clamp((o.max || 3200) / Math.max(src.width, src.height), 1, 2), B = 3;
+    const W = Math.round(src.width * u) + 2 * B, H = Math.round(src.height * u) + 2 * B, n = W * H;
+    const c = newCanvas(W, H), x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high'; x.drawImage(src, B, B, W - 2 * B, H - 2 * B);
+    const px = x.getImageData(0, 0, W, H).data, a = new Float32Array(n), t = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = px[i * 4 + 3] / 255;
+    // a few light passes (1-2-1) melt pixel steps and JPG wobble into a clean gradient;
+    // corners rounded by this are rebuilt sharp later. Masks with hard edges ask for more (o.smooth)
+    for (let pass = 0; pass < (o.smooth || 3); pass++) {
+      for (let i = 1; i < n - 1; i++) t[i] = (a[i - 1] + 2 * a[i] + a[i + 1]) / 4;
+      for (let i = W; i < n - W; i++) a[i] = (t[i - W] + 2 * t[i] + t[i + W]) / 4;
+    }
+    // marching squares: every grid edge the outline crosses is linked to the next one
+    const iso = 0.5, links = new Map();
+    const link = (e1, e2) => {
+      let l = links.get(e1); if (!l) links.set(e1, l = []); l.push(e2);
+      l = links.get(e2); if (!l) links.set(e2, l = []); l.push(e1);
+    };
+    for (let y = 0; y < H - 1; y++) for (let xx = 0; xx < W - 1; xx++) {
+      const i = y * W + xx;
+      const k = (a[i] >= iso ? 8 : 0) | (a[i + 1] >= iso ? 4 : 0) | (a[i + W + 1] >= iso ? 2 : 0) | (a[i + W] >= iso ? 1 : 0);
+      if (k === 0 || k === 15) continue;
+      const T = i, Bo = i + W, L = n + i, R = n + i + 1;   // top / bottom edges, left / right edges
+      switch (k) {
+        case 1: case 14: link(L, Bo); break;
+        case 2: case 13: link(Bo, R); break;
+        case 3: case 12: link(L, R); break;
+        case 4: case 11: link(T, R); break;
+        case 6: case 9: link(T, Bo); break;
+        case 7: case 8: link(T, L); break;
+        default: {   // 5, 10: two opposite corners inside; the centre decides if they touch
+          const cen = (a[i] + a[i + 1] + a[i + W] + a[i + W + 1]) / 4 >= iso;
+          if ((k === 5) === cen) { link(T, L); link(Bo, R); } else { link(T, R); link(L, Bo); }
+        }
+      }
+    }
+    const pt = e => {
+      if (e < n) { const v0 = a[e], v1 = a[e + 1]; return [e % W + (iso - v0) / (v1 - v0), (e / W) | 0]; }
+      const i = e - n, v0 = a[i], v1 = a[i + W]; return [i % W, ((i / W) | 0) + (iso - v0) / (v1 - v0)];
+    };
+    const seen = new Set(), minArea = (o.minArea || 3) * u * u, tol = (o.tol || 0.3) * u, parts = [];
+    const f2 = v => +((v - B) / u).toFixed(2);
+    for (const start of links.keys()) {
+      if (seen.has(start)) continue;
+      const P = []; let prev = -1, cur = start;
+      while (cur !== undefined && !seen.has(cur)) {
+        seen.add(cur); P.push(pt(cur));
+        const l = links.get(cur), nx = l[0] !== prev ? l[0] : l[1];
+        prev = cur; cur = nx;
+      }
+      let area = 0;
+      for (let i = 0, N = P.length; i < N; i++) { const p = P[i], q = P[(i + 1) % N]; area += p[0] * q[1] - q[0] * p[1]; }
+      if (P.length < 6 || Math.abs(area) / 2 < minArea) continue;
+      const bez = fitLoop(P, Math.max(3, Math.round(3 * u)), tol);
+      if (!bez.length) continue;
+      let d = `M${f2(bez[0][0][0])} ${f2(bez[0][0][1])}`;
+      for (const b of bez) d += `C${f2(b[1][0])} ${f2(b[1][1])} ${f2(b[2][0])} ${f2(b[2][1])} ${f2(b[3][0])} ${f2(b[3][1])}`;
+      parts.push(d + 'Z');
+    }
+    return parts.length ? parts.join(' ') : null;
+  }
+  const vSub = (p, q) => [p[0] - q[0], p[1] - q[1]], vDot = (p, q) => p[0] * q[0] + p[1] * q[1];
+  const vNorm = p => { const l = Math.hypot(p[0], p[1]) || 1; return [p[0] / l, p[1] / l]; };
+  const bezAt = (b, t) => { const m = 1 - t, c0 = m * m * m, c1 = 3 * m * m * t, c2 = 3 * m * t * t, c3 = t * t * t; return [c0 * b[0][0] + c1 * b[1][0] + c2 * b[2][0] + c3 * b[3][0], c0 * b[0][1] + c1 * b[1][1] + c2 * b[2][1] + c3 * b[3][1]]; };
+  // closed outline → list of cubic Béziers; K = how many points to look along when measuring a turn
+  function fitLoop(P, K, tol) {
+    const N = P.length, out = [], corners = [], at = j => P[((j % N) + N) % N];
+    if (N >= 6 * K) {
+      const turn = new Float32Array(N);
+      for (let i = 0; i < N; i++) {
+        const p0 = at(i - K), p1 = P[i], p2 = at(i + K);
+        const ax = p1[0] - p0[0], ay = p1[1] - p0[1], bx = p2[0] - p1[0], by = p2[1] - p1[1];
+        turn[i] = Math.abs(Math.atan2(ax * by - ay * bx, ax * bx + ay * by));
+      }
+      for (let i = 0; i < N; i++) {
+        if (turn[i] < 1) continue;   // ~57°: sharper than that is a corner, not a curve
+        let top = true;
+        for (let j = 1; j <= K && top; j++) if (turn[(i - j + N) % N] > turn[i] || turn[(i + j) % N] >= turn[i]) top = false;
+        if (top) corners.push(i);
+      }
+    }
+    if (!corners.length) {
+      const Q = P.concat([P[0]]), tc = vNorm(vSub(P[1], P[N - 1]));
+      fitCubic(Q, 0, N, tc, [-tc[0], -tc[1]], tol * tol, out);
+      return out;
+    }
+    // pixels and smoothing round every corner off: rebuild the sharp point where the two
+    // edges that reach it would meet, and drop the rounded bit in between
+    const gap = (c0, c1) => ((c1 - c0 + N) % N) || N, M = corners.length;
+    const V = corners.map((c, k) => {
+      // each edge needs a straight-ish stretch between this corner's rounding and the next one's
+      const g0 = gap(corners[(k - 1 + M) % M], c), g1 = gap(c, corners[(k + 1) % M]);
+      if (g0 < 2 * K + 3 || g1 < 2 * K + 3) return { p: P[c], cut: 1 };
+      const a = at(c - K), da = vNorm(vSub(a, at(c - Math.min(2 * K, g0 - K)))), b = at(c + K), db = vNorm(vSub(b, at(c + Math.min(2 * K, g1 - K))));
+      const den = da[0] * db[1] - da[1] * db[0];
+      if (Math.abs(den) > 0.2) {
+        const s = ((b[0] - a[0]) * db[1] - (b[1] - a[1]) * db[0]) / den, t = ((b[0] - a[0]) * da[1] - (b[1] - a[1]) * da[0]) / den;
+        if (s > 0 && t > 0 && s < 3 * K && t < 3 * K) return { p: [a[0] + da[0] * s, a[1] + da[1] * s], cut: K };
+      }
+      return { p: P[c], cut: 1 };
+    });
+    corners.forEach((c0, k) => {
+      const k1 = (k + 1) % M, len = gap(c0, corners[k1]), Q = [V[k].p];
+      for (let j = V[k].cut; j <= len - V[k1].cut; j++) Q.push(at(c0 + j));
+      Q.push(V[k1].p);
+      const n = Q.length - 1, e0 = V[k].cut > 1 ? 1 : Math.min(K, n), e1 = V[k1].cut > 1 ? 1 : Math.min(K, n);
+      fitCubic(Q, 0, n, vNorm(vSub(Q[e0], Q[0])), vNorm(vSub(Q[n - e1], Q[n])), tol * tol, out);
+    });
+    return out;
+  }
+  // Schneider's curve fitting: one Bézier through P[a..b] with the given end tangents; split where it fits worst
+  function fitCubic(P, a, b, t1, t2, err, out) {
+    if (b - a === 1) {
+      const d = Math.hypot(P[b][0] - P[a][0], P[b][1] - P[a][1]) / 3;
+      out.push([P[a], [P[a][0] + t1[0] * d, P[a][1] + t1[1] * d], [P[b][0] + t2[0] * d, P[b][1] + t2[1] * d], P[b]]); return;
+    }
+    let u = [0];
+    for (let i = a + 1; i <= b; i++) u.push(u[i - a - 1] + Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]));
+    const total = u[u.length - 1] || 1; u = u.map(v => v / total);
+    const gen = () => {
+      let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+      for (let i = a; i <= b; i++) {
+        const t = u[i - a], m = 1 - t, b0 = m * m * m, b1 = 3 * m * m * t, b2 = 3 * m * t * t, b3 = t * t * t;
+        const a1 = [t1[0] * b1, t1[1] * b1], a2 = [t2[0] * b2, t2[1] * b2];
+        const tmp = [P[i][0] - (P[a][0] * (b0 + b1) + P[b][0] * (b2 + b3)), P[i][1] - (P[a][1] * (b0 + b1) + P[b][1] * (b2 + b3))];
+        c00 += vDot(a1, a1); c01 += vDot(a1, a2); c11 += vDot(a2, a2); x0 += vDot(a1, tmp); x1 += vDot(a2, tmp);
+      }
+      const det = c00 * c11 - c01 * c01, seg = Math.hypot(P[b][0] - P[a][0], P[b][1] - P[a][1]);
+      let al = det ? (x0 * c11 - x1 * c01) / det : 0, ar = det ? (c00 * x1 - c01 * x0) / det : 0;
+      if (al < seg * 1e-6 || ar < seg * 1e-6) al = ar = seg / 3;
+      return [P[a], [P[a][0] + t1[0] * al, P[a][1] + t1[1] * al], [P[b][0] + t2[0] * ar, P[b][1] + t2[1] * ar], P[b]];
+    };
+    const worst = bz => {
+      let max = 0, at = (a + b) >> 1;
+      for (let i = a + 1; i < b; i++) { const q = bezAt(bz, u[i - a]), d = (q[0] - P[i][0]) ** 2 + (q[1] - P[i][1]) ** 2; if (d >= max) { max = d; at = i; } }
+      return [max, at];
+    };
+    let bz = gen(), [max, at] = worst(bz);
+    if (max < err) { out.push(bz); return; }
+    if (max < err * 16) for (let it = 0; it < 4; it++) {
+      // Newton step: slide each point's parameter to where the curve is really closest
+      u = u.map((t, k) => {
+        const p = P[a + k], q = bezAt(bz, t), m = 1 - t;
+        const d1 = [0, 1].map(j => 3 * (m * m * (bz[1][j] - bz[0][j]) + 2 * m * t * (bz[2][j] - bz[1][j]) + t * t * (bz[3][j] - bz[2][j])));
+        const d2 = [0, 1].map(j => 6 * (m * (bz[2][j] - 2 * bz[1][j] + bz[0][j]) + t * (bz[3][j] - 2 * bz[2][j] + bz[1][j])));
+        const num = (q[0] - p[0]) * d1[0] + (q[1] - p[1]) * d1[1], den = d1[0] * d1[0] + d1[1] * d1[1] + (q[0] - p[0]) * d2[0] + (q[1] - p[1]) * d2[1];
+        return den ? clamp(t - num / den, 0, 1) : t;
+      });
+      bz = gen(); [max, at] = worst(bz);
+      if (max < err) { out.push(bz); return; }
+    }
+    const tc = vNorm(vSub(P[at - 1], P[at + 1]));
+    fitCubic(P, a, at, t1, tc, err, out);
+    fitCubic(P, at, b, [-tc[0], -tc[1]], t2, err, out);
+  }
+
+  // an image as flat vector layers, ready for an SVG: [{ id, label, fill, d }] in the cleaned image's pixels.
+  // 1 / 2 inks: one layer per ink (halftone becomes a 50 % tint). Colours: one layer per colour, stacked
+  // from the largest up, each one also covering what goes above it so no hairline gaps show between colours.
+  function capasVector(img, o) {
+    const out = [], tint = (hex, t) => toHex(hexToRgb(hex).map(v => v + (255 - v) * t));
+    if (o.mode === 'color') {
+      limpiarImagen(img, o);   // makes sure the palette exists
+      (o.palette || []).forEach((c, k) => {
+        const d = vectorizar(limpiarImagen(img, o, { stack: k }), { smooth: 4 });
+        if (d) out.push({ id: 'Color_' + (k + 1), label: 'Color ' + c.hex, fill: c.hex, d });
+      });
+      return out;
+    }
+    const seps = o.mode === 'ink2' ? [['ink', 'Tinta_1', o.ink, ''], ['ink2', 'Tinta_2', o.ink2, '']]
+      : [['ink', 'Tinta_1', o.ink, ''], ['trama', 'Tinta_1_TRAMA', tint(o.ink, 0.5), ' - trama 50 %']];
+    for (const [role, id, fill, extra] of seps) {
+      const d = vectorizar(limpiarImagen(img, o, role));
+      if (d) out.push({ id, label: id.replace(/_/g, ' ') + extra, fill, d });
+    }
+    return out;
+  }
 
   // ---------- contact strip ----------
   const ICONS = {
@@ -631,7 +820,7 @@ window.Suite = (() => {
 
   return {
     $, clamp, newCanvas, hexToRgb, toHex, d2rgb, lumRGB, roundRect, esc, newId, fmtDate, imgFrom, loadImage, toast,
-    openDB, fondoUniforme, limpiarImagen, ROLE_NAMES, CONTACT_KEYS, CONTACT_LABELS, dibujarContacto,
+    openDB, fondoUniforme, limpiarImagen, vectorizar, capasVector, ROLE_NAMES, CONTACT_KEYS, CONTACT_LABELS, dibujarContacto,
     descargar, puedeCompartir, compartir, nombreArchivo, pngConDpi, shell,
   };
 })();
