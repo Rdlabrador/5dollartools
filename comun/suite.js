@@ -373,6 +373,7 @@ window.Suite = (() => {
   //   hooks.sucio() / hooks.limpio()   unsaved changes?
   //   hooks.alEditor()         the editor just became visible
   //   hooks.respaldo() / hooks.restaurar(extra)   app-specific data for the backup file
+  //   hooks.deshacer() / hooks.rehacer()   optional: shows the undo / redo arrows; report with app.historial(canUndo, canRedo)
   function shell(cfg) {
     const H = cfg.hooks, db = cfg.db;
     const app = { cliente: null, n: null, db };
@@ -380,6 +381,8 @@ window.Suite = (() => {
 <header>
   <button class="btn hidden" id="toClients">‹ Clientes</button>
   <h1 id="title">${esc(cfg.nombre)}</h1>
+  <button class="btn hidden" id="undoBtn" title="Deshacer (Ctrl + Z)" aria-label="Deshacer">↶</button>
+  <button class="btn hidden" id="redoBtn" title="Rehacer (Ctrl + Y)" aria-label="Rehacer">↷</button>
   <button class="btn primary hidden" id="saveVersion">Guardar versión</button>
 </header>
 <section class="view" id="clientsView">
@@ -429,6 +432,8 @@ window.Suite = (() => {
       const ed = document.body.dataset.view === 'editor';
       $('toClients').classList.toggle('hidden', !ed);
       $('saveVersion').classList.toggle('hidden', !ed || !app.cliente);
+      $('undoBtn').classList.toggle('hidden', !ed || !H.deshacer);
+      $('redoBtn').classList.toggle('hidden', !ed || !H.deshacer);
       $('toClients').textContent = '‹ ' + (app.cliente ? app.cliente.nombre : 'Clientes');
       $('title').textContent = !ed ? cfg.nombre
         : app.cliente ? (app.n ? `Versión ${app.n}` : 'Nuevo diseño') : 'Prueba rápida';
@@ -535,6 +540,19 @@ window.Suite = (() => {
         toast(`Guardado como versión ${n} de ${app.cliente.nombre}`);
       } catch (err) { alert('No se pudo guardar: ' + err.message); }
     };
+
+    // undo / redo: arrows in the header (phone) and Ctrl+Z / Ctrl+Y (PC). The editor keeps the history.
+    $('undoBtn').onclick = () => H.deshacer && H.deshacer();
+    $('redoBtn').onclick = () => H.rehacer && H.rehacer();
+    document.addEventListener('keydown', e => {
+      if (!H.deshacer || document.body.dataset.view !== 'editor' || !(e.ctrlKey || e.metaKey)) return;
+      // while typing, Ctrl+Z belongs to the text field
+      if (e.target.matches && e.target.matches('textarea, input[type=text], input[type=search], input:not([type])')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); H.deshacer(); }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); H.rehacer(); }
+    });
+    app.historial = (canUndo, canRedo) => { $('undoBtn').disabled = !canUndo; $('redoBtn').disabled = !canRedo; };
 
     $('toClients').onclick = async () => {
       if (H.sucio() && !confirm('Hay cambios sin guardar. ¿Salir igual?')) return;

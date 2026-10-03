@@ -136,9 +136,11 @@
       <div class="row"><span>Posición Y</span><input type="range" id="posY" min="0" max="900" step="1"><output id="posYO"></output></div>
       <div class="row"><span>Rotación</span><input type="range" id="rot" min="-180" max="180" value="0"><output id="rotO"></output></div>
       <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
+      <label class="check" id="repRow"><input type="checkbox" id="rep"> Repetir en el otro lado de la taza</label>
       <div class="btns">
         <button class="btn" id="center">Centrar</button>
         <button class="btn" id="fit">Tamaño sugerido</button>
+        <button class="btn" id="fill">Llenar la zona</button>
         <button class="btn" id="rot0">Rotación 0°</button>
       </div>
     </section>
@@ -255,7 +257,19 @@
     const lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
     return Math.abs(lx) <= w / 2 + 15 && Math.abs(ly) <= h / 2 + 15;
   }
-  const hitLayer = p => [...S.layers].reverse().find(l => hit(l, p)) || null;
+  // a layer marked "repeat on the other side" is drawn a second time half a strip away,
+  // so both sides of the mug show the same thing
+  const repDx = l => l.rep && S.layout !== 'dos' ? (l.x < D().w / 2 ? D().w / 2 : -D().w / 2) : 0;
+  const copies = l => { const r = repDx(l); return r ? [0, r] : [0]; };
+  // in "two sides" the right half is a copy of the left: touching it edits the original
+  const halfOf = p => S.layout === 'dos' && p.x > D().w / 2 ? D().w / 2 : 0;
+  // topmost layer under a point of the strip, and how far the touched copy is from the original
+  function hitAt(p) {
+    const base = halfOf(p);
+    for (const l of [...S.layers].reverse()) for (const o of copies(l)) if (hit(l, { x: p.x - base - o, y: p.y })) return { l, dx: base + o };
+    return null;
+  }
+  const cloneLayer = l => ({ ...l, o: l.o && { ...l.o, palette: l.o.palette && l.o.palette.map(p => ({ ...p })) }, c: l.c && { ...l.c } });
   function scaleLayer(l, k) {
     const w = clamp(l.w * k, 30, D().w * 1.5); k = w / l.w;
     l.w = w; if (l.fs) l.fs *= k;
@@ -342,8 +356,10 @@
     const pass = dx => S.layers.forEach(l => {
       if (!l.visible || !l.proc) return;
       const [lw, lh] = dimsOf(l);
-      c.save(); c.globalAlpha = l.opacity; c.translate(l.x + dx, l.y); c.rotate(l.rot * Math.PI / 180);
-      c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); c.restore();
+      copies(l).forEach(o => {
+        c.save(); c.globalAlpha = l.opacity; c.translate(l.x + dx + o, l.y); c.rotate(l.rot * Math.PI / 180);
+        c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); c.restore();
+      });
     });
     const clipped = (x, cw, dx) => { c.save(); c.beginPath(); c.rect(x, 0, cw, h); c.clip(); pass(dx); c.restore(); };
     // "two sides": what is designed on the left half is printed again on the right half
@@ -377,19 +393,32 @@
   }
 
   // ---------- flat canvas ("lienzo") ----------
-  const cv = $('cv'), FM = 44;   // margin around the strip, in canvas pixels
-  const flatK = () => (cv.width - 2 * FM) / D().w;
+  // shows the whole wall of the mug unrolled (handle at both ends), with the printable strip
+  // inside it: what the press cannot reach next to the handle and at the edges is hatched
+  const cv = $('cv'), FM = 10;   // margin around the wall, in canvas pixels
+  function flatMap() {
+    const g = geo(), k = (cv.width - 2 * FM) / g.C;
+    return { g, k, x0: FM + g.ox * k, y0: FM + g.oy * k };
+  }
   function drawFlat() {
-    const { w, h } = D(), k = flatK(), ch = Math.round(h * k) + 2 * FM;
+    const { w, h } = D(), { g, k, x0, y0 } = flatMap(), ch = Math.round(g.Hw * k) + 2 * FM;
     if (cv.height !== ch) cv.height = ch;
     const x = cv.getContext('2d');
     x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
-    x.fillStyle = S.colors.body; x.fillRect(FM, FM, w * k, h * k);
-    // the handle is at both ends of the strip
-    x.fillStyle = '#a3a6ae'; x.font = '600 20px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    [[FM / 2, -1], [cv.width - FM / 2, 1]].forEach(([px, s]) => { x.save(); x.translate(px, ch / 2); x.rotate(s * Math.PI / 2); x.fillText('ASA', 0, 0); x.restore(); });
-    x.fillText(`${cm(w / U)} × ${cm(h / U)} cm`, cv.width / 2, FM / 2);
-    x.setTransform(k, 0, 0, k, FM, FM);
+    x.fillStyle = S.colors.body; x.fillRect(FM, FM, g.C * k, g.Hw * k);
+    // hatch everything outside the strip
+    x.save();
+    x.beginPath(); x.rect(FM, FM, g.C * k, g.Hw * k); x.rect(x0, y0, w * k, h * k); x.clip('evenodd');
+    x.fillStyle = 'rgba(110,114,124,.28)'; x.fillRect(0, 0, cv.width, ch);
+    x.strokeStyle = 'rgba(110,114,124,.6)'; x.lineWidth = 2; x.beginPath();
+    for (let i = -ch; i < cv.width; i += 16) { x.moveTo(i, ch); x.lineTo(i + ch, 0); }
+    x.stroke(); x.restore();
+    const band = g.ox * k;
+    if (band > 34) {
+      x.fillStyle = '#3b3e46'; x.font = '700 19px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+      [[FM + band / 2, -1], [cv.width - FM - band / 2, 1]].forEach(([px, sgn]) => { x.save(); x.translate(px, ch / 2); x.rotate(sgn * Math.PI / 2); x.fillText('ASA · NO SE IMPRIME', 0, 0); x.restore(); });
+    }
+    x.setTransform(k, 0, 0, k, x0, y0);
     drawStrip(x); drawGuides(x, 1 / k, true);
   }
 
@@ -488,7 +517,9 @@
   const VIEWS = { der: () => yawOf(D().w * 0.75), izq: () => yawOf(D().w * 0.25), fre: () => yawOf(D().w * 0.5) };
   function lookAtZone() { const z = zone(); cam.yaw = yawOf(z.x + z.w / 2); cam.pitch = 0.2; cam.zoom = 1; }
 
+  let paintCount = 0;
   function paint(tex, guides) {
+    paintCount++;
     const c = tex.image, x = c.getContext('2d'), g = geo(), k = c.width / g.C;
     x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.fillStyle = S.colors.body; x.fillRect(0, 0, c.width, c.height);
     x.setTransform(k, 0, 0, k, g.ox * k, g.oy * k);
@@ -508,12 +539,18 @@
     paint(tex, showUI); matBody.map = tex;
     placeCamera(); renderer.render(scene, camera);
   }
+  // turning or zooming the mug changes nothing in the design: only the camera moves
+  let camFrame = 0;
+  function scheduleCamera() {
+    if (camFrame || !renderer) return;
+    camFrame = requestAnimationFrame(() => { camFrame = 0; placeCamera(); renderer.render(scene, camera); });
+  }
   function scheduleRender() {
     if (frame) return;
     frame = requestAnimationFrame(() => { frame = 0; render(); syncTransform(); showSizes(); });
   }
   function liveUpdate() {
-    live = true; S.dirty = true; scheduleRender();
+    live = true; S.dirty = true; scheduleRender(); touch();
     clearTimeout(liveTimer);
     liveTimer = setTimeout(() => { if (!drag) { live = false; sharpen(); render(); } }, 160);
   }
@@ -522,7 +559,36 @@
     showUI = true; clearTimeout(uiTimer);
     uiTimer = setTimeout(() => { if (!drag) { showUI = false; render(); } }, 1200);
   }
-  const update = () => { syncControls(); renderLayers(); render(); showSizes(); S.dirty = true; };
+  const update = () => { syncControls(); renderLayers(); render(); showSizes(); S.dirty = true; touch(); };
+
+  // ---------- undo / redo ----------
+  // every finished change leaves a snapshot of the design; the layers' canvases are shared, not copied
+  const hist = []; let hi = -1, histTimer = null;
+  const snap = () => ({ model: { ...S.model }, colors: { ...S.colors }, layout: S.layout, sel: S.sel, layers: S.layers.map(cloneLayer) });
+  const sigOf = s => JSON.stringify([s.model, s.colors, s.layout, s.layers.map(({ img, proc, ...r }) => r)]);
+  function commit() {
+    clearTimeout(histTimer);
+    const s = snap(), sig = sigOf(s);
+    if (hi < 0 || hist[hi].sig !== sig) {
+      hist.splice(hi + 1); hist.push({ s, sig });
+      if (hist.length > 50) hist.shift();
+      hi = hist.length - 1;
+    }
+    app.historial(hi > 0, hi < hist.length - 1);
+  }
+  // sliders and typing fire many changes: one history step once they settle
+  function touch() { clearTimeout(histTimer); histTimer = setTimeout(commit, 350); }
+  function histReset() { hist.length = 0; hi = -1; commit(); }
+  function histGo(d) {
+    commit();   // a change still settling counts as a step
+    const t = hi + d; if (t < 0 || t >= hist.length) return;
+    hi = t;
+    const s = hist[hi].s, newMug = JSON.stringify(s.model) !== JSON.stringify(S.model);
+    S.model = { ...s.model }; S.colors = { ...s.colors }; S.layout = s.layout; S.layers = s.layers.map(cloneLayer); S.sel = s.sel;
+    if (newMug) buildMug(); else applyColors();
+    syncDims(); renderModels(); syncControls(); renderLayers(); render(); showSizes(); S.dirty = true;
+    app.historial(hi > 0, hi < hist.length - 1);
+  }
 
   // ---------- placement ----------
   function centerLayer(l) { const z = zone(); l.x = z.x + z.w / 2; l.y = l.type === 'contact' ? z.h * 0.86 : z.h / 2; }
@@ -733,6 +799,15 @@
   $('center').onclick = onSel(l => { centerLayer(l); showGuide(); update(); });
   $('fit').onclick = onSel(l => { fitLayer(l); showGuide(); update(); });
   $('rot0').onclick = onSel(l => { l.rot = 0; update(); });
+  $('rep').onchange = onSel((l, e) => { l.rep = e.target.checked; showGuide(); update(); });
+  // cover the whole zone, like a background that goes from edge to edge
+  $('fill').onclick = onSel(l => {
+    if (!l.proc) return;
+    const z = zone(), ar = l.proc.width / l.proc.height;
+    l.rot = 0; l.x = z.x + z.w / 2; l.y = z.h / 2;
+    l.w = Math.max(z.w, z.h * ar);
+    showGuide(); update();
+  });
 
   $('layout').onchange = e => {
     // the whole composition moves with its zone
@@ -783,6 +858,8 @@
       if (sig !== lastSig) { lastSig = sig; renderPalette(l); }
     }
     $('op').value = Math.round(l.opacity * 100); $('opO').textContent = Math.round(l.opacity * 100) + '%';
+    $('rep').checked = !!l.rep; $('repRow').classList.toggle('hidden', S.layout === 'dos');
+    $('fill').classList.toggle('hidden', t !== 'img');
     syncTransform();
   }
   function syncTransform() {
@@ -800,7 +877,14 @@
     if (l && l.proc) {
       const b = bounds(corners(l));
       lines.push(`<b>Capa:</b> ${cm(b.w / U)} × ${cm(b.h / U)} cm · a ${cm(b.y / U)} cm del borde superior de la impresión`);
+      if (l.type === 'img') {
+        // pixels the image really has for the size it is printed at
+        const dpi = Math.round(l.proc.width / (l.w / U / 25.4));
+        lines.push(dpi < 150 ? `⚠ <b>Calidad baja: ${dpi} dpi.</b> A este tamaño se verá pixelada; achícala o pide la imagen en mayor tamaño.`
+          : `<b>Calidad:</b> ${dpi} dpi${dpi < 250 ? ' (aceptable)' : ' (buena)'}`);
+      }
     }
+    if (g.ox >= 0) lines.push(`<b>Sin imprimir:</b> ${cm(g.ox * 2 / U)} cm en la zona del asa${g.oy > 5 ? ` · ${cm(g.oy / U)} cm arriba y abajo` : ''}`);
     if (g.ox < 60) lines.push('⚠ La impresión es más ancha que el espacio que deja el asa: revisa el ancho o el diámetro.');
     if (g.oy < 0) lines.push('⚠ La impresión es más alta que la taza: revisa las medidas.');
     $('sizeInfo').innerHTML = lines.join('<br>');
@@ -839,13 +923,11 @@
     return { x: uv.x * g.C - g.ox, y: (1 - uv.y) * g.Hw - g.oy };
   }
   function pickFlat(e) {
-    const r = cv.getBoundingClientRect(), k = flatK() * r.width / cv.width;
-    return { x: (e.clientX - r.left) / k - FM / flatK(), y: (e.clientY - r.top) / k - FM / flatK() };
+    const r = cv.getBoundingClientRect(), { k, x0, y0 } = flatMap(), q = cv.width / r.width;
+    return { x: ((e.clientX - r.left) * q - x0) / k, y: ((e.clientY - r.top) * q - y0) / k };
   }
   const ptrs = new Map();   // active fingers (screen coords)
   const pinch = () => { const [a, b] = [...ptrs.values()]; return { d: Math.hypot(b.x - a.x, b.y - a.y) || 1, ang: Math.atan2(b.y - a.y, b.x - a.x) }; };
-  // in "two sides" the right half is a copy: touching it edits the original on the left
-  const halfOf = p => S.layout === 'dos' && p.x > D().w / 2 ? D().w / 2 : 0;
 
   function surface(el, is3d) {
     const pick = is3d ? pick3d : pickFlat;
@@ -861,8 +943,8 @@
       }
       if (ptrs.size > 2) return;
       const p = pick(e);
-      let l = null, dx = 0;
-      if (p) { dx = halfOf(p); l = hitLayer({ x: p.x - dx, y: p.y }); }
+      const h = p && hitAt(p);
+      let l = h ? h.l : null, dx = h ? h.dx : 0;
       // on the flat canvas, like in MyBags, dragging anywhere moves the selected layer
       if (!l && !is3d && p && sel() && sel().proc) l = sel();
       if (l) {
@@ -884,11 +966,11 @@
         l.rot = Math.round(((drag.rot0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
         liveUpdate(); return;
       }
-      if (drag.zoom) { if (ptrs.size >= 2) { cam.zoom = clamp(drag.z0 * pinch().d / drag.d0, 0.6, 2.6); scheduleRender(); } return; }
+      if (drag.zoom) { if (ptrs.size >= 2) { cam.zoom = clamp(drag.z0 * pinch().d / drag.d0, 0.6, 2.6); scheduleCamera(); } return; }
       if (drag.orbit) {
         cam.yaw = drag.yaw - (e.clientX - drag.x) * 0.011;
         cam.pitch = clamp(drag.pitch + (e.clientY - drag.y) * 0.008, 0.02, 1.25);
-        scheduleRender(); return;
+        scheduleCamera(); return;
       }
       const p = pick(e); if (!p) return;
       drag.layer.x = p.x - drag.dx - drag.ox; drag.layer.y = p.y - drag.oy;
@@ -904,11 +986,11 @@
     };
     el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
     el.addEventListener('wheel', e => {
-      const p = pick(e), l = p && (hitLayer({ x: p.x - halfOf(p), y: p.y }) || (!is3d && sel()));
+      const p = pick(e), h = p && hitAt(p), l = h ? h.l : (!is3d && p && sel()) || null;
       const k = e.deltaY < 0 ? 1.05 : 1 / 1.05;
       // Ctrl + wheel resizes the layer under the pointer; on the mug, the plain wheel zooms the camera
       if (e.ctrlKey && l) { e.preventDefault(); S.sel = l.id; scaleLayer(l, k); showGuide(); liveUpdate(); syncControls(); }
-      else if (is3d && !e.ctrlKey) { e.preventDefault(); cam.zoom = clamp(cam.zoom * k, 0.6, 2.6); scheduleRender(); }
+      else if (is3d && !e.ctrlKey) { e.preventDefault(); cam.zoom = clamp(cam.zoom * k, 0.6, 2.6); scheduleCamera(); }
     }, { passive: false });
     el.addEventListener('keydown', e => {
       const l = sel(); if (!l) return;
@@ -928,7 +1010,7 @@
     document.querySelectorAll('.tabs .btn').forEach(b => b.classList.toggle('on', b.dataset.s === s));
     resize3d(); render();
   }
-  document.querySelectorAll('#views .btn').forEach(b => { b.onclick = () => { cam.yaw = VIEWS[b.dataset.v](); cam.pitch = 0.2; cam.zoom = 1; render(); }; });
+  document.querySelectorAll('#views .btn').forEach(b => { b.onclick = () => { cam.yaw = VIEWS[b.dataset.v](); cam.pitch = 0.2; cam.zoom = 1; scheduleCamera(); }; });
 
   // ---------- photos & print file ----------
   const BGS = { oscuro: ['#3a3d45', '#22242a'], claro: ['#f4f4f6', '#d5d6db'], blanco: ['#ffffff', '#ffffff'] };
@@ -985,13 +1067,13 @@
 
   // ---------- clients & versions (shared shell) ----------
   const db = Suite.openDB('mymugs');
-  const LAYER_KEYS = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'rot', 'opacity', 'fs', 'text', 'font', 'peso', 'color', 'def', 'defAmt', 'esp', 'lines', 'imgId'];
+  const LAYER_KEYS = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'rot', 'opacity', 'rep', 'fs', 'text', 'font', 'peso', 'color', 'def', 'defAmt', 'esp', 'lines', 'imgId'];
   const app = Suite.shell({
     nombre: 'MyMugs', id: 'conceptualizador-tazas', sufijo: 'tazas', db,
     hooks: {
       async nuevo() {
         S.layers = []; S.sel = null; S.layout = 'der';
-        lookAtZone(); syncDims(); renderModels(); update();
+        lookAtZone(); syncDims(); renderModels(); update(); histReset();
       },
       async abrir(d) {
         const st = d.estado;
@@ -1009,7 +1091,7 @@
         }
         S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
         if (st.cam) Object.assign(cam, st.cam); else lookAtZone();
-        syncDims(); renderModels(); update();
+        syncDims(); renderModels(); update(); histReset();
       },
       async guardar() {
         for (const l of S.layers) if (l.type === 'img' && l.img && !l.imgId) {
@@ -1029,6 +1111,8 @@
           imgIds: S.layers.map(l => l.imgId).filter(Boolean), etiqueta: S.model.nombre, thumb: t.toDataURL('image/jpeg', 0.8),
         };
       },
+      deshacer: () => histGo(-1),
+      rehacer: () => histGo(1),
       sucio: () => S.dirty && S.layers.length > 0,
       limpio: () => { S.dirty = false; },
       alEditor: () => { resize3d(); render(); },
@@ -1046,7 +1130,7 @@
   renderFonts(); syncDims(); renderModels(); setStage('3d'); update(); S.dirty = false;
   db.all('modelos').then(list => { list.sort((a, b) => a.creado - b.creado).forEach(m => MODELOS.push({ ...m, local: true })); renderModels(); });
   // lets the automated tests drive the editor
-  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone };
+  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, paints: () => paintCount, hist: () => [hi, hist.length] };
   app.iniciar();
 })();
 </script>

@@ -85,6 +85,7 @@ h2.big { font-size: 24px; text-transform: none; letter-spacing: 0; color: var(--
 .quick b { display: block; font-size: 17px; }
 .quick small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 .quick .qa { margin-left: auto; font-size: 26px; color: var(--brand); }
+#undoBtn, #redoBtn { padding: 4px 11px; font-size: 19px; line-height: 1.1; }
 #toClients { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--brand); color: #111; font-weight: 600; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }
 .toast.on { opacity: 1; }
@@ -105,6 +106,8 @@ h2.big { font-size: 24px; text-transform: none; letter-spacing: 0; color: var(--
   aside { overflow: visible; padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
   header { padding: 12px 16px; padding-top: calc(12px + env(safe-area-inset-top)); }
   header h1 { font-size: 16px; }
+  header { gap: 8px; }
+  #toClients { max-width: 34vw; }
   /* iPhone zooms into any field with text smaller than 16px */
   input, select, textarea, .row select, .row input[type=text] { font-size: 16px; }
   .btn { padding: 11px 14px; font-size: 14px; }
