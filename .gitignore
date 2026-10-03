@@ -1,7 +1,12 @@
 # Material de trabajo local de cada herramienta: fotos originales, ejemplos de clientes
-# (con datos de contacto) y logos de prueba. Nunca se sube.
+# (con teléfonos y direcciones) y logos de prueba. Nunca se sube, esté en la carpeta que esté.
 **/referencias/
 _prueba*
+
+# Solo locales: notas internas de trabajo y la carpeta antigua del proyecto
+/CLAUDE.md
+/PROMPT-SUITE.md
+/Conceptualizador de bolsas/
 
 # Sistema
 Thumbs.db

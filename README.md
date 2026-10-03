@@ -9,8 +9,8 @@ Herramientas fáciles y baratas. Cada herramienta vive en su propia carpeta y se
 
 ## Agregar una herramienta nueva
 
-1. Crea una carpeta con nombre corto, en minúsculas y con guiones (ej. `etiquetas-precio/`).
-2. Dentro, su `index.html` y lo que necesite.
+1. Crea una carpeta con nombre corto, en minúsculas y con guiones (ej. `conceptualizador-tazas/`).
+2. Dentro, su `index.html` y lo que necesite. Las herramientas de la suite comparten estructura, flujo y diseño: usa `conceptualizador-bolsas/` (MyBags) como referencia.
 3. Agrégala a la tabla de arriba y a la página de inicio (`index.html` de la raíz).
 4. Sube los cambios (`git add`, `git commit`, `git push`). En 1–2 minutos queda publicada.
 
