@@ -2,28 +2,1053 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MyMugs — en desarrollo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyMugs</title>
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0c0d10">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="MyMugs">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<link rel="stylesheet" href="../comun/suite.css">
 <style>
-  :root { --bg: #0c0d10; --panel: #17181c; --text: #f3f3f3; --muted: #a3a6ae; --line: #2e3037; --brand: #f5c400; color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
-  .box { max-width: 460px; text-align: center; background: var(--panel); border: 1.5px dashed var(--brand); border-radius: 16px; padding: 36px 28px; }
-  .dot { width: 64px; height: 64px; border-radius: 50%; background: var(--brand); margin: 0 auto 18px; display: grid; place-items: center; }
-  h1 { font-size: 24px; margin: 0 0 8px; }
-  h1 span { color: var(--brand); }
-  p { color: var(--muted); line-height: 1.5; margin: 0 0 22px; }
-  a { display: inline-block; background: var(--brand); color: #111; font-weight: 700; text-decoration: none; padding: 10px 16px; border-radius: 9px; }
+  /* only what mugs need on top of the suite styles */
+  .stage { justify-content: flex-start; gap: 10px; }
+  #view3d { width: 100%; flex: 1; min-height: 200px; position: relative; touch-action: none; cursor: grab; border-radius: 12px; overflow: hidden; }
+  #view3d canvas { width: 100%; height: 100%; display: block; outline: none; }
+  #view3d .nogl { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 13px; text-align: center; padding: 20px; }
+  #cv { width: auto; height: auto; max-width: 100%; max-height: 30vh; touch-action: none; cursor: grab; flex-shrink: 0; outline: none; }
+  .tabs { display: none; gap: 6px; }
+  .tabs .btn { padding: 6px 14px; font-size: 13px; }
+  .views { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .views .btn { padding: 5px 10px; font-size: 12px; }
+  .layers { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; }
+  .lrow { display: flex; align-items: center; gap: 4px; border: 2px solid var(--line); border-radius: 10px; background: var(--panel-2); padding: 3px; }
+  .lrow.on { border-color: var(--accent); background: var(--accent-soft); }
+  .lrow.off .lname { opacity: .45; }
+  .lrow button { font: inherit; background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px 7px; border-radius: 6px; font-size: 14px; line-height: 1; }
+  .lrow button:hover { color: var(--text); background: rgba(255,255,255,.06); }
+  .lrow .lname { flex: 1; min-width: 0; text-align: left; color: var(--text); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .lrow .tag { flex-shrink: 0; font-size: 10px; font-weight: 700; color: #111; background: var(--brand); border-radius: 4px; padding: 2px 4px; min-width: 26px; text-align: center; }
+  textarea { width: 100%; resize: vertical; margin-bottom: 10px; display: block; }
+  .fonts { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; max-height: 190px; overflow-y: auto; margin: 6px 0 10px; padding-right: 2px; }
+  .fbtn { border: 2px solid var(--line); border-radius: 8px; background: var(--panel-2); color: var(--text); padding: 6px 4px; font-size: 17px; line-height: 1.15; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fbtn.on { border-color: var(--accent); background: var(--accent-soft); }
+  .cats .btn { padding: 4px 9px; font-size: 12px; }
+  .grp { margin-bottom: 6px; }
+  @media (max-width: 860px) {
+    .tabs { display: flex; }
+    #view3d { height: 40vh; flex: none; min-height: 0; border-radius: 0; }
+    #cv { max-height: 40vh; }
+    body[data-stage="3d"] #cv, body[data-stage="plano"] #view3d, body[data-stage="plano"] .views { display: none; }
+    .lrow button { padding: 9px 9px; }
+    .fbtn { padding: 9px 4px; }
+  }
 </style>
 </head>
-<body>
-  <div class="box">
-    <div class="dot"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7z" fill="#111"/></svg></div>
-    <h1>MyMugs <span>en desarrollo</span></h1>
-    <p>Compón el diseño de tu cliente y míralo sobre la taza en 3D antes de sublimar. Estamos construyendo esta herramienta; pronto estará disponible.</p>
-    <a href="../">‹ Volver a 5dollartools</a>
+<body data-view="clients" data-stage="3d">
+
+<main>
+  <aside>
+    <section>
+      <h2>1 · Modelo de taza</h2>
+      <div class="templates" id="modelos"></div>
+      <div class="btns" style="margin-top:8px"><button class="btn hidden" id="delModel">Eliminar este modelo</button></div>
+    </section>
+
+    <section>
+      <h2>2 · Color de la taza</h2>
+      <div class="row"><span>Cuerpo</span><div class="swatches" id="colBody"></div></div>
+      <div class="row"><span>Interior</span><div class="swatches" id="colInside"></div></div>
+      <div class="row"><span>Asa</span><div class="swatches" id="colHandle"></div></div>
+    </section>
+
+    <section>
+      <h2>3 · Diseño</h2>
+      <div class="row"><span>Disposición</span>
+        <select id="layout">
+          <option value="der">Un lado · asa a la derecha</option>
+          <option value="izq">Un lado · asa a la izquierda</option>
+          <option value="dos">Dos lados (se repite)</option>
+          <option value="centro">Al centro, frente al asa</option>
+          <option value="env">Envolvente (toda la tira)</option>
+        </select>
+      </div>
+      <div class="btns">
+        <button class="btn primary" id="addImg">+ Imagen</button>
+        <button class="btn primary" id="addText">+ Texto</button>
+        <button class="btn" id="addContact">+ Franja de contacto</button>
+        <input type="file" id="imgFile" accept="image/*" class="hidden">
+      </div>
+      <div class="layers" id="capas"></div>
+    </section>
+
+    <section id="capaCtl" class="hidden">
+      <h2>4 · Ajustes de la capa</h2>
+
+      <div class="grp" id="gText">
+        <textarea id="txt" rows="2" placeholder="Escribe tu texto"></textarea>
+        <div class="subh">Tipografía</div>
+        <div class="btns cats" id="fontCats"></div>
+        <div class="fonts" id="fonts"></div>
+        <div class="row"><span>Deformar</span>
+          <select id="def">
+            <option value="none">Sin deformar</option>
+            <option value="arco">Arco</option>
+            <option value="onda">Onda</option>
+          </select>
+        </div>
+        <div class="row" id="defAmtRow"><span>Curvatura</span><input type="range" id="defAmt" min="-100" max="100" value="50"><output id="defAmtO"></output></div>
+        <div class="row"><span>Espaciado</span><input type="range" id="esp" min="-8" max="60" value="0"><output id="espO"></output></div>
+      </div>
+
+      <div class="grp" id="gContact">
+        <div id="contactFields"></div>
+        <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
+      </div>
+
+      <div class="row" id="colorRow"><span>Color</span><div class="swatches" id="txtColors"></div></div>
+
+      <div class="grp" id="gImg">
+        <div class="row"><span>Impresión</span>
+          <select id="mode">
+            <option value="color">Colores originales</option>
+            <option value="ink">1 color</option>
+            <option value="ink2">2 colores</option>
+          </select>
+        </div>
+        <div id="palRow">
+          <div class="subh" style="margin:2px 0 6px">Colores de la imagen · toca cada uno para elegir cómo se imprime</div>
+          <div class="palette" id="palette"></div>
+        </div>
+        <div class="row" id="inkRow"><span>Tinta</span><div class="swatches" id="inks"></div></div>
+        <div class="row" id="ink2Row"><span>Tinta 2</span><div class="swatches" id="inks2"></div></div>
+        <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo de la imagen</label>
+        <div class="row" id="thrRow"><span>Limpieza</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrO"></output></div>
+        <div class="note" id="thrNote">Si la imagen sale con manchas o le falta detalle, mueve “Limpieza”.</div>
+        <label class="check" id="invertRow"><input type="checkbox" id="invert"> Invertir (imprimir el fondo en vez de la figura)</label>
+      </div>
+
+      <div class="row"><span>Tamaño</span><input type="range" id="size" min="30" max="3000"><output id="sizeO"></output></div>
+      <div class="row"><span>Posición X</span><input type="range" id="posX" min="0" max="2000" step="1"><output id="posXO"></output></div>
+      <div class="row"><span>Posición Y</span><input type="range" id="posY" min="0" max="900" step="1"><output id="posYO"></output></div>
+      <div class="row"><span>Rotación</span><input type="range" id="rot" min="-180" max="180" value="0"><output id="rotO"></output></div>
+      <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
+      <div class="btns">
+        <button class="btn" id="center">Centrar</button>
+        <button class="btn" id="fit">Tamaño sugerido</button>
+        <button class="btn" id="rot0">Rotación 0°</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>5 · Medidas y archivo de impresión</h2>
+      <div class="note" style="margin-top:0">Área que cubre la impresión (tu plantilla de sublimación):</div>
+      <div class="row"><span>Ancho</span><input type="text" inputmode="decimal" id="dimW"><span style="width:auto">cm</span></div>
+      <div class="row"><span>Alto</span><input type="text" inputmode="decimal" id="dimH"><span style="width:auto">cm</span></div>
+      <div class="note">Medidas de la taza:</div>
+      <div class="row"><span>Alto taza</span><input type="text" inputmode="decimal" id="mugH"><span style="width:auto">cm</span></div>
+      <div class="row"><span>Diámetro</span><input type="text" inputmode="decimal" id="mugD"><span style="width:auto">cm</span></div>
+      <div class="sizeinfo" id="sizeInfo"></div>
+      <label class="check"><input type="checkbox" id="mirror" checked> En espejo (para sublimar)</label>
+      <button class="btn" id="exportPrint" style="width:100%">Descargar archivo de impresión (PNG)</button>
+      <div class="note">La tira sale a tamaño real y a 300 dpi, lista para ponerla en tu hoja.</div>
+    </section>
+
+    <section>
+      <h2>6 · Fotos para enviar</h2>
+      <label class="check"><input type="checkbox" id="fAct" checked> Vista actual</label>
+      <label class="check"><input type="checkbox" id="fDer"> Asa a la derecha</label>
+      <label class="check"><input type="checkbox" id="fFre"> De frente (sin asa)</label>
+      <label class="check"><input type="checkbox" id="fIzq"> Asa a la izquierda</label>
+      <div class="row"><span>Fondo</span>
+        <select id="fondo">
+          <option value="oscuro">Oscuro</option>
+          <option value="claro">Claro</option>
+          <option value="blanco">Blanco</option>
+        </select>
+      </div>
+      <div class="btns">
+        <button class="btn primary" id="export" style="flex:1">Descargar mockup (PNG)</button>
+        <button class="btn primary hidden" id="share" style="flex:1">Compartir</button>
+      </div>
+    </section>
+  </aside>
+
+  <div class="stage">
+    <div class="tabs">
+      <button class="btn" data-s="3d">Taza 3D</button>
+      <button class="btn" data-s="plano">Lienzo</button>
+    </div>
+    <div id="view3d"></div>
+    <div class="views" id="views">
+      <button class="btn" data-v="izq">Asa izquierda</button>
+      <button class="btn" data-v="fre">Frente</button>
+      <button class="btn" data-v="der">Asa derecha</button>
+    </div>
+    <canvas id="cv" width="1400" height="660"></canvas>
+    <div class="hint" id="hint"></div>
   </div>
+</main>
+
+<script src="fonts.js"></script>
+<script src="lib/three.min.js"></script>
+<script src="../comun/suite.js"></script>
+<script>
+(() => {
+  const { $, clamp, newCanvas, hexToRgb, esc, newId, imgFrom, loadImage, toast } = Suite;
+  const T = window.THREE;
+  const FUENTES = Array.isArray(self.FUENTES) ? self.FUENTES : [];
+
+  // ---------- models ----------
+  // The mug is drawn in 3D from its measurements (mm). impW × impH is the printable strip.
+  // Reference values for the usual mugs: the user corrects them with his own template.
+  const MODELOS = [
+    { id: '11oz', nombre: 'Taza 11 oz', alto: 95, diam: 82, impW: 200, impH: 90 },
+    { id: '15oz', nombre: 'Taza 15 oz', alto: 118, diam: 86, impW: 215, impH: 105 },
+  ];
+  const BODY_COLORS = [['Blanco', '#f6f6f4'], ['Negro', '#1b1b1d'], ['Rojo', '#b3262b'], ['Azul', '#1f3f7a'], ['Rosado', '#f2a0b8'], ['Amarillo', '#f2c230'], ['Verde', '#2f6b45'], ['Celeste', '#8ec9e8']];
+  const INKS = [['Negro', '#111111'], ['Rojo', '#b3262b'], ['Azul', '#1f3f7a'], ['Verde', '#2f6b45'], ['Rosado', '#e8739a'], ['Amarillo', '#f2c230'], ['Dorado', '#c8a24c'], ['Blanco', '#ffffff']];
+  const U = 10;                     // design units per mm (the strip is laid out in tenths of a millimetre)
+  const WALL_B = 3, WALL_T = 1.6;   // mm of the mug height taken by the base bevel and the rim
+
+  // ---------- state ----------
+  // The design is a flat strip (design space, 0.1 mm units) made of layers. The same strip is shown
+  // flat ("lienzo") and wrapped around the 3D mug; both views edit the same layers.
+  const S = {
+    model: { ...MODELOS[0] },
+    colors: { body: '#f6f6f4', inside: '#f6f6f4', handle: '#f6f6f4' },
+    layout: 'der', layers: [], sel: null, dirty: false,
+  };
+  const cam = { yaw: 0, pitch: 0.2, zoom: 1 };
+  const D = () => ({ w: S.model.impW * U, h: S.model.impH * U });
+  // where the strip sits on the mug wall (wall unrolled: C wide, Hw tall, seam at the handle)
+  function geo() {
+    const m = S.model, d = D(), C = Math.PI * m.diam * U, Hw = (m.alto - WALL_B - WALL_T) * U;
+    return { C, Hw, ox: (C - d.w) / 2, oy: (Hw - d.h) / 2 };
+  }
+  // the part of the strip the chosen layout designs on
+  function zone(layout = S.layout) {
+    const { w, h } = D();
+    const x = layout === 'der' ? w / 2 : layout === 'centro' ? w / 4 : 0;
+    return { x, y: 0, w: layout === 'env' ? w : w / 2, h };
+  }
+  const sel = () => S.layers.find(l => l.id === S.sel) || null;
+
+  // ---------- layers ----------
+  // every layer ends up as a canvas (l.proc) drawn centred on (x, y), w wide, rotated
+  const dimsOf = l => l.proc ? [l.w, l.w * l.proc.height / l.proc.width] : [0, 0];
+  function corners(l) {
+    const [w, h] = dimsOf(l), a = l.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+    return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y]) => [l.x + x * co - y * si, l.y + x * si + y * co]);
+  }
+  function bounds(pts) {
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const x = Math.min(...xs), y = Math.min(...ys);
+    return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+  }
+  function hit(l, p) {
+    if (!l.visible || !l.proc) return false;
+    const [w, h] = dimsOf(l), a = -l.rot * Math.PI / 180, x = p.x - l.x, y = p.y - l.y;
+    const lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
+    return Math.abs(lx) <= w / 2 + 15 && Math.abs(ly) <= h / 2 + 15;
+  }
+  const hitLayer = p => [...S.layers].reverse().find(l => hit(l, p)) || null;
+  function scaleLayer(l, k) {
+    const w = clamp(l.w * k, 30, D().w * 1.5); k = w / l.w;
+    l.w = w; if (l.fs) l.fs *= k;
+  }
+
+  // crop a canvas to what is actually drawn on it
+  function trim(c) {
+    const w = c.width, h = c.height, p = c.getContext('2d').getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (p[(y * w + x) * 4 + 3] > 8) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 < 0) return null;
+    const out = newCanvas(x1 - x0 + 3, y1 - y0 + 3);
+    out.getContext('2d').drawImage(c, x0 - 1, y0 - 1, out.width, out.height, 0, 0, out.width, out.height);
+    return out;
+  }
+
+  // text: drawn letter by letter so it can follow an arc or a wave
+  const measure = newCanvas(1, 1).getContext('2d');
+  function renderText(l) {
+    const px = clamp(Math.round(l.fs * 1.2), 16, 500);
+    const font = `${l.peso || 400} ${px}px "${l.font}", sans-serif`;
+    measure.font = font;
+    const sp = px * (l.esp || 0) / 100;
+    const rows = String(l.text || '').split('\n').map(t => {
+      const ch = [...t], adv = ch.map(c => measure.measureText(c).width);
+      return { t, ch, adv, L: adv.reduce((a, b) => a + b, 0) + sp * Math.max(0, ch.length - 1) };
+    });
+    const Lmax = Math.max(px * 0.5, ...rows.map(r => r.L));
+    const amt = l.def === 'none' ? 0 : (l.defAmt || 0) / 100;
+    const lh = px * 1.25, extra = amt ? Lmax * 0.45 + px : 0;
+    const c = newCanvas(Math.ceil(Lmax + px * 3 + extra), Math.ceil(rows.length * lh + px * 2 + extra * 2)), x = c.getContext('2d');
+    x.font = font; x.fillStyle = l.color; x.textBaseline = 'alphabetic'; x.textAlign = 'center';
+    rows.forEach((r, i) => {
+      const y0 = px * 1.5 + extra + i * lh, cx = c.width / 2;
+      if (!amt && !sp) { x.fillText(r.t, cx, y0); return; }
+      let s = -r.L / 2;
+      r.ch.forEach((chr, j) => {
+        const sc = s + r.adv[j] / 2; s += r.adv[j] + sp;
+        x.save();
+        if (!amt) x.translate(cx + sc, y0);
+        else if (l.def === 'arco') {
+          const th = amt * Math.PI * 1.1, R = Lmax / Math.abs(th), a = sc / R;
+          if (th > 0) { x.translate(cx + R * Math.sin(a), y0 + R - R * Math.cos(a)); x.rotate(a); }
+          else { x.translate(cx + R * Math.sin(a), y0 - R + R * Math.cos(a)); x.rotate(-a); }
+        } else {
+          const ph = 2 * Math.PI * (sc + Lmax / 2) / Lmax, A = amt * px * 0.6;
+          x.translate(cx + sc, y0 + A * Math.sin(ph)); x.rotate(Math.atan(A * 2 * Math.PI / Lmax * Math.cos(ph)));
+        }
+        x.fillText(chr, 0, 0); x.restore();
+      });
+    });
+    l._px = px;
+    return trim(c);
+  }
+  function renderContact(l) {
+    const px = clamp(Math.round(l.fs * 1.2), 12, 220);
+    const maxW = zone().w * 0.96 * px / l.fs;
+    const c = newCanvas(Math.ceil(maxW * 1.5 + px * 6), Math.ceil(px * 2 * 6 + px * 2)), x = c.getContext('2d');
+    const box = Suite.dibujarContacto(x, l.c, { fs: px, color: l.color, lines: l.lines, maxW, cx: c.width / 2, cy: c.height / 2 });
+    l._px = px;
+    return box ? trim(c) : null;
+  }
+  // (re)build a layer's canvas from its source and settings
+  function rebuild(l) {
+    if (l.type === 'img') {
+      l.o.fondo = hexToRgb(S.colors.body);
+      l.proc = l.img ? Suite.limpiarImagen(l.img, l.o) : null;
+    } else {
+      l.proc = l.type === 'text' ? renderText(l) : renderContact(l);
+      if (l.proc) l.w = l.proc.width * l.fs / l._px;
+    }
+  }
+  // text was scaled with the fingers: redraw it at its new size so it stays sharp
+  function sharpen() {
+    S.layers.forEach(l => { if (l.type !== 'img' && l._px && l._px < 500 && Math.abs(l.fs * 1.2 / l._px - 1) > 0.2) rebuild(l); });
+  }
+  const fontReady = l => document.fonts && l.font ? document.fonts.load(`${l.peso || 400} 40px "${l.font}"`).catch(() => { }) : Promise.resolve();
+
+  // draws the whole design; the context is already in design units with the strip at (0, 0)
+  function drawStrip(c) {
+    const { w, h } = D();
+    const pass = dx => S.layers.forEach(l => {
+      if (!l.visible || !l.proc) return;
+      const [lw, lh] = dimsOf(l);
+      c.save(); c.globalAlpha = l.opacity; c.translate(l.x + dx, l.y); c.rotate(l.rot * Math.PI / 180);
+      c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); c.restore();
+    });
+    const clipped = (x, cw, dx) => { c.save(); c.beginPath(); c.rect(x, 0, cw, h); c.clip(); pass(dx); c.restore(); };
+    // "two sides": what is designed on the left half is printed again on the right half
+    if (S.layout === 'dos') { clipped(0, w / 2, 0); clipped(w / 2, w / 2, w / 2); }
+    else clipped(0, w, 0);
+  }
+  // px = size of one screen pixel in design units, so lines keep their thickness
+  function drawGuides(c, px, full) {
+    const { w, h } = D(), z = zone();
+    const poly = pts => { c.beginPath(); pts.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.stroke(); };
+    c.save();
+    if (full) {
+      c.strokeStyle = 'rgba(120,124,134,.9)'; c.lineWidth = 1.5 * px; c.setLineDash([]); c.strokeRect(0, 0, w, h);
+      if (S.layout !== 'env') {
+        c.strokeStyle = 'rgba(245,196,0,.75)'; c.lineWidth = 2 * px; c.setLineDash([10 * px, 8 * px]);
+        c.strokeRect(z.x, z.y, z.w, z.h);
+        if (S.layout === 'dos') c.strokeRect(w / 2, 0, w / 2, h);
+      }
+      c.strokeStyle = 'rgba(120,124,134,.55)'; c.lineWidth = px; c.setLineDash([4 * px, 6 * px]);
+      c.beginPath(); c.moveTo(z.x + z.w / 2, 0); c.lineTo(z.x + z.w / 2, h); c.moveTo(z.x, h / 2); c.lineTo(z.x + z.w, h / 2); c.stroke();
+    } else if (showUI) {
+      c.strokeStyle = 'rgba(120,124,134,.8)'; c.lineWidth = 2 * px; c.setLineDash([8 * px, 8 * px]); c.strokeRect(0, 0, w, h);
+    }
+    const l = sel();
+    if (showUI && l && l.proc && l.visible) {
+      const pts = corners(l);
+      c.setLineDash([]); c.strokeStyle = '#f5c400'; c.lineWidth = 4 * px; poly(pts);
+      c.strokeStyle = '#111'; c.lineWidth = 2 * px; c.setLineDash([8 * px, 6 * px]); poly(pts);
+    }
+    c.restore();
+  }
+
+  // ---------- flat canvas ("lienzo") ----------
+  const cv = $('cv'), FM = 44;   // margin around the strip, in canvas pixels
+  const flatK = () => (cv.width - 2 * FM) / D().w;
+  function drawFlat() {
+    const { w, h } = D(), k = flatK(), ch = Math.round(h * k) + 2 * FM;
+    if (cv.height !== ch) cv.height = ch;
+    const x = cv.getContext('2d');
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cv.width, cv.height);
+    x.fillStyle = S.colors.body; x.fillRect(FM, FM, w * k, h * k);
+    // the handle is at both ends of the strip
+    x.fillStyle = '#a3a6ae'; x.font = '600 20px system-ui, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    [[FM / 2, -1], [cv.width - FM / 2, 1]].forEach(([px, s]) => { x.save(); x.translate(px, ch / 2); x.rotate(s * Math.PI / 2); x.fillText('ASA', 0, 0); x.restore(); });
+    x.fillText(`${cm(w / U)} × ${cm(h / U)} cm`, cv.width / 2, FM / 2);
+    x.setTransform(k, 0, 0, k, FM, FM);
+    drawStrip(x); drawGuides(x, 1 / k, true);
+  }
+
+  // ---------- 3D mug ----------
+  let renderer = null, scene, camera, mug = null, wall = null, texHi = null, texLo = null, matBody, matSolid, matInside, matHandle;
+  function init3d() {
+    try { renderer = new T.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true }); }
+    catch { renderer = null; $('view3d').innerHTML = '<div class="nogl">Este teléfono no puede mostrar la taza en 3D. Usa el lienzo para diseñar.</div>'; return; }
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.outputEncoding = T.sRGBEncoding;
+    $('view3d').append(renderer.domElement);
+    $('view3d').tabIndex = 0;
+    scene = new T.Scene();
+    camera = new T.PerspectiveCamera(26, 1, 10, 5000);
+    // a small studio for the ceramic to reflect: grey room with three soft light panels
+    const env = new T.Scene();
+    env.add(new T.Mesh(new T.BoxGeometry(12, 12, 12), new T.MeshBasicMaterial({ color: 0xb9b9b9, side: T.BackSide })));
+    const panel = (x, y, z, w, h, i) => {
+      const m = new T.Mesh(new T.PlaneGeometry(w, h), new T.MeshBasicMaterial({ color: new T.Color(i, i, i), side: T.DoubleSide }));
+      m.position.set(x, y, z); m.lookAt(0, 0, 0); env.add(m);
+    };
+    panel(-5, 3, 4, 4, 6, 5); panel(5.5, 2, 2, 2.5, 6, 2.5); panel(0, 5.8, 0, 6, 6, 2);
+    const pm = new T.PMREMGenerator(renderer);
+    scene.environment = pm.fromScene(env, 0.04).texture; pm.dispose();
+    const key = new T.DirectionalLight(0xffffff, 0.55); key.position.set(-1.2, 2, 1.6); scene.add(key);
+    matBody = new T.MeshStandardMaterial({ roughness: 0.2, metalness: 0 });
+    const solid = () => new T.MeshStandardMaterial({ roughness: 0.2, metalness: 0, side: T.DoubleSide });
+    matSolid = solid(); matInside = solid(); matHandle = solid();
+    // soft contact shadow under the mug
+    const sc = newCanvas(256, 256), sx = sc.getContext('2d'), g = sx.createRadialGradient(128, 128, 20, 128, 128, 128);
+    g.addColorStop(0, 'rgba(0,0,0,.45)'); g.addColorStop(0.55, 'rgba(0,0,0,.16)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    sx.fillStyle = g; sx.fillRect(0, 0, 256, 256);
+    shadow = new T.Mesh(new T.PlaneGeometry(1, 1), new T.MeshBasicMaterial({ map: new T.CanvasTexture(sc), transparent: true, depthWrite: false }));
+    shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.3; scene.add(shadow);
+    new ResizeObserver(resize3d).observe($('view3d'));
+  }
+  let shadow = null;
+
+  function canvasTex(w) {
+    const g = geo(), t = new T.CanvasTexture(newCanvas(w, Math.max(64, Math.round(w * g.Hw / g.C))));
+    t.encoding = T.sRGBEncoding; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); t.wrapS = T.RepeatWrapping;
+    return t;
+  }
+  function buildMug() {
+    if (!renderer) return;
+    if (mug) { scene.remove(mug); mug.traverse(o => { if (o.geometry) o.geometry.dispose(); }); }
+    if (texHi) { texHi.dispose(); texLo.dispose(); }
+    texHi = canvasTex(2048); texLo = canvasTex(1024);
+    const m = S.model, R = m.diam / 2, Hh = m.alto, t = WALL_T * 2, y0 = WALL_B, y1 = Hh - WALL_T, N = 96;
+    const V = (x, y) => new T.Vector2(x, y), q = i => i / 6 * Math.PI / 2;
+    mug = new T.Group();
+    // wall: the only textured part. The seam (u = 0) is at the handle, on +x; u grows to the right seen from outside
+    wall = new T.Mesh(new T.CylinderGeometry(R, R, y1 - y0, N, 1, true, Math.PI / 2, Math.PI * 2), matBody);
+    wall.position.y = (y0 + y1) / 2; mug.add(wall);
+    const base = [V(0, 0), V(R - WALL_B, 0)];
+    for (let i = 1; i <= 6; i++) base.push(V(R - WALL_B + WALL_B * Math.sin(q(i)), WALL_B - WALL_B * Math.cos(q(i))));
+    mug.add(new T.Mesh(new T.LatheGeometry(base, N), matSolid));
+    const rim = [], inside = [];
+    for (let i = 0; i <= 6; i++) rim.push(V(R - WALL_T + WALL_T * Math.cos(q(i)), y1 + WALL_T * Math.sin(q(i))));
+    mug.add(new T.Mesh(new T.LatheGeometry(rim, N), matSolid));
+    for (let i = 0; i <= 6; i++) inside.push(V(R - WALL_T + WALL_T * Math.cos(Math.PI / 2 + q(i)), y1 + WALL_T * Math.sin(Math.PI / 2 + q(i))));
+    const fl = 5, r = 7;
+    for (let i = 0; i <= 6; i++) inside.push(V(R - t - r + r * Math.cos(q(i)), fl + r - r * Math.sin(q(i))));
+    inside.push(V(0, fl));
+    mug.add(new T.Mesh(new T.LatheGeometry(inside, N), matInside));
+    const hp = [[R - 2, .80], [R + .15 * Hh, .83], [R + .29 * Hh, .70], [R + .31 * Hh, .48], [R + .22 * Hh, .27], [R - 2, .21]];
+    const hg = new T.TubeGeometry(new T.CatmullRomCurve3(hp.map(([x, y]) => new T.Vector3(x, y * Hh, 0))), 48, Hh * 0.052, 14);
+    hg.scale(1, 1, 1.5);
+    mug.add(new T.Mesh(hg, matHandle));
+    scene.add(mug);
+    shadow.scale.set(m.diam * 2.3, m.diam * 2.1, 1); shadow.position.x = m.alto * 0.06;
+    applyColors();
+  }
+  function applyColors() {
+    if (!renderer) return;
+    // picked colours are sRGB; the lighting works in linear light (otherwise red comes out pink)
+    [[matSolid, 'body'], [matInside, 'inside'], [matHandle, 'handle']].forEach(([m, k]) => m.color.set(S.colors[k]).convertSRGBToLinear());
+  }
+  function placeCamera() {
+    const m = S.model, size = Math.max(m.alto, m.diam + m.alto * 0.34) * 1.22;
+    let dist = size / 2 / Math.tan(camera.fov * Math.PI / 360) / cam.zoom;
+    if (camera.aspect < 1) dist /= camera.aspect;
+    const ty = m.alto * 0.5, cp = Math.cos(cam.pitch);
+    camera.position.set(Math.sin(cam.yaw) * cp * dist, ty + Math.sin(cam.pitch) * dist, Math.cos(cam.yaw) * cp * dist);
+    camera.lookAt(0, ty, 0); camera.updateProjectionMatrix();
+  }
+  function resize3d() {
+    if (!renderer) return;
+    const el = $('view3d'), w = el.clientWidth, h = el.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h, false); camera.aspect = w / h;
+    render();
+  }
+  // camera angle that looks straight at a point of the strip
+  const yawOf = x => { const g = geo(); return (x + g.ox) / g.C * Math.PI * 2 + Math.PI / 2; };
+  const VIEWS = { der: () => yawOf(D().w * 0.75), izq: () => yawOf(D().w * 0.25), fre: () => yawOf(D().w * 0.5) };
+  function lookAtZone() { const z = zone(); cam.yaw = yawOf(z.x + z.w / 2); cam.pitch = 0.2; cam.zoom = 1; }
+
+  function paint(tex, guides) {
+    const c = tex.image, x = c.getContext('2d'), g = geo(), k = c.width / g.C;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.fillStyle = S.colors.body; x.fillRect(0, 0, c.width, c.height);
+    x.setTransform(k, 0, 0, k, g.ox * k, g.oy * k);
+    drawStrip(x);
+    if (guides) drawGuides(x, 1 / k, false);
+    tex.needsUpdate = true;
+  }
+
+  // ---------- rendering ----------
+  // while a finger/slider is moving we draw a lighter preview (smaller texture) once per screen
+  // frame; full quality comes back right after the movement stops
+  let live = false, frame = 0, liveTimer = null, showUI = false, uiTimer = null, drag = null;
+  function render() {
+    drawFlat();
+    if (!renderer || !mug) return;
+    const tex = live ? texLo : texHi;
+    paint(tex, showUI); matBody.map = tex;
+    placeCamera(); renderer.render(scene, camera);
+  }
+  function scheduleRender() {
+    if (frame) return;
+    frame = requestAnimationFrame(() => { frame = 0; render(); syncTransform(); showSizes(); });
+  }
+  function liveUpdate() {
+    live = true; S.dirty = true; scheduleRender();
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => { if (!drag) { live = false; sharpen(); render(); } }, 160);
+  }
+  // selection guide shows only while adjusting, then fades so the preview is clean
+  function showGuide() {
+    showUI = true; clearTimeout(uiTimer);
+    uiTimer = setTimeout(() => { if (!drag) { showUI = false; render(); } }, 1200);
+  }
+  const update = () => { syncControls(); renderLayers(); render(); showSizes(); S.dirty = true; };
+
+  // ---------- placement ----------
+  function centerLayer(l) { const z = zone(); l.x = z.x + z.w / 2; l.y = l.type === 'contact' ? z.h * 0.86 : z.h / 2; }
+  function fitLayer(l) {
+    if (!l.proc) return;
+    const z = zone(), ar = l.proc.width / l.proc.height;
+    const w = l.type === 'contact' ? Math.min(l.w, z.w * 0.9) : Math.min(z.w * 0.7, z.h * (l.type === 'text' ? 0.3 : 0.72) * ar);
+    scaleLayer(l, w / l.w);
+    if (l.type !== 'img') rebuild(l);
+  }
+
+  // ---------- UI: models ----------
+  const MED_KEY = 'mymugs.medidas';
+  const loadMed = () => { try { return JSON.parse(localStorage.getItem(MED_KEY)) || {}; } catch { return {}; } };
+  const cm = v => (v / 10).toLocaleString('es-CL', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const withMed = m => ({ ...m, ...(m.local ? {} : loadMed()[m.id] || {}) });
+  function mugIcon(m) {
+    const c = newCanvas(160, 160), x = c.getContext('2d'), s = 104 / Math.max(m.alto, m.diam * 1.35), w = m.diam * s, h = m.alto * s;
+    const x0 = 80 - w / 2 - h * 0.13, y0 = 80 - h / 2;
+    x.strokeStyle = '#e4e4e2'; x.lineWidth = h * 0.09;
+    x.beginPath(); x.ellipse(x0 + w + h * 0.02, 80, h * 0.25, h * 0.29, 0, 0, Math.PI * 2); x.stroke();
+    x.fillStyle = '#f4f4f2'; const p = new Path2D(); Suite.roundRect(p, x0, y0, w, h, h * 0.06); x.fill(p);
+    return c;
+  }
+  function renderModels() {
+    const box = $('modelos'); box.innerHTML = '';
+    MODELOS.forEach(base => {
+      const m = withMed(base), b = document.createElement('button');
+      b.className = 'tpl' + (S.model.id === m.id ? ' on' : ''); b.title = m.nombre;
+      b.append(mugIcon(m), m.nombre);
+      b.onclick = () => selectModel(m);
+      box.append(b);
+    });
+    const add = document.createElement('button'); add.className = 'tpl add';
+    add.innerHTML = '<b>+</b>Agregar';
+    add.onclick = addModel;
+    box.append(add);
+    $('delModel').classList.toggle('hidden', !S.model.local);
+  }
+  // keep every layer at the same spot relative to the strip while the strip changes size
+  function keepRelative(change) {
+    const a = D(); change(); const b = D();
+    S.layers.forEach(l => { l.x *= b.w / a.w; l.y *= b.h / a.h; });
+  }
+  function selectModel(m, { keep = false } = {}) {
+    keepRelative(() => { S.model = { ...m }; });
+    buildMug();
+    if (!keep) lookAtZone();
+    S.layers.forEach(l => { if (l.type === 'contact') rebuild(l); });
+    syncDims(); renderModels(); update();
+  }
+  async function addModel() {
+    const n = MODELOS.filter(m => m.local).length;
+    const nombre = (prompt('Nombre del modelo (ej. Taza 15 oz negra):', 'Mi taza ' + (n + 1)) || '').trim();
+    if (!nombre) return;
+    const m = { ...S.model, id: 'local:' + newId(), nombre, local: true, creado: Date.now() };
+    try { await db.run('modelos', 'readwrite', st => st.put(m)); } catch (err) { alert('No se pudo guardar el modelo: ' + err.message); return; }
+    MODELOS.push(m); selectModel(m, { keep: true });
+    toast('Modelo agregado: ajusta sus medidas en la sección 5');
+  }
+  $('delModel').onclick = async () => {
+    const m = S.model; if (!m.local) return;
+    if (!confirm(`¿Eliminar el modelo "${m.nombre}"? Los diseños guardados con él no se pierden.`)) return;
+    try { await db.run('modelos', 'readwrite', st => st.delete(m.id)); } catch { }
+    MODELOS.splice(MODELOS.findIndex(x => x.id === m.id), 1);
+    selectModel(withMed(MODELOS[0]), { keep: true });
+  };
+
+  // ---------- UI: colours ----------
+  function swatchRow(box, list, set) {
+    list.forEach(([name, c]) => {
+      const b = document.createElement('button'); b.className = 'sw'; b.title = name; b.dataset.c = c; b.style.background = c;
+      b.onclick = () => set(c);
+      box.append(b);
+    });
+    const custom = document.createElement('input'); custom.type = 'color'; custom.title = 'Otro color';
+    custom.oninput = () => set(custom.value);
+    box.append(custom);
+  }
+  const markSw = (box, c) => { box.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', b.dataset.c === c)); box.querySelector('input').value = c || '#000000'; };
+  const setColor = (key, c) => {
+    S.colors[key] = c; applyColors();
+    // 1/2-colour images pick their ink by contrast with the mug
+    if (key === 'body') S.layers.forEach(l => { if (l.type === 'img' && l.o.mode !== 'color') { l.o.paletteDirty = true; rebuild(l); } });
+    update();
+  };
+  swatchRow($('colBody'), BODY_COLORS, c => setColor('body', c));
+  swatchRow($('colInside'), BODY_COLORS, c => setColor('inside', c));
+  swatchRow($('colHandle'), BODY_COLORS, c => setColor('handle', c));
+
+  // ---------- UI: layers ----------
+  const TAGS = { img: 'IMG', text: 'T', contact: '@' };
+  const layerName = l => l.type === 'img' ? l.name : l.type === 'text' ? '“' + (String(l.text).split('\n')[0] || 'Texto') + '”' : 'Franja de contacto';
+  function renderLayers() {
+    const box = $('capas'); box.innerHTML = '';
+    if (!S.layers.length) { box.innerHTML = '<div class="note">Agrega una imagen o un texto para empezar. Lo de arriba en la lista tapa a lo de abajo.</div>'; return; }
+    [...S.layers].reverse().forEach(l => {
+      const i = S.layers.indexOf(l), row = document.createElement('div');
+      row.className = 'lrow' + (l.id === S.sel ? ' on' : '') + (l.visible ? '' : ' off');
+      row.innerHTML = `<button title="${l.visible ? 'Ocultar' : 'Mostrar'}">${l.visible ? '●' : '○'}</button>
+        <button class="lname"><span class="tag">${TAGS[l.type]}</span>${esc(layerName(l))}</button>
+        <button title="Subir">▲</button><button title="Bajar">▼</button><button title="Duplicar">⧉</button><button title="Eliminar">✕</button>`;
+      const [eye, name, up, down, dup, del] = row.querySelectorAll('button');
+      eye.onclick = () => { l.visible = !l.visible; update(); };
+      name.onclick = () => { S.sel = l.id; showGuide(); update(); };
+      up.onclick = () => { if (i < S.layers.length - 1) { S.layers.splice(i, 1); S.layers.splice(i + 1, 0, l); update(); } };
+      down.onclick = () => { if (i > 0) { S.layers.splice(i, 1); S.layers.splice(i - 1, 0, l); update(); } };
+      dup.onclick = () => {
+        const c = { ...l, id: newId(), x: l.x + 60, y: l.y + 60 };
+        if (l.o) c.o = { ...l.o, palette: l.o.palette && l.o.palette.map(p => ({ ...p })) };
+        if (l.c) c.c = { ...l.c };
+        rebuild(c); S.layers.push(c); S.sel = c.id; showGuide(); update();
+      };
+      del.onclick = () => { S.layers.splice(i, 1); if (S.sel === l.id) S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null; update(); };
+      box.append(row);
+    });
+  }
+  function addLayer(l) { S.layers.push(l); S.sel = l.id; showGuide(); update(); }
+
+  async function addImage(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    let img; try { img = await loadImage(file); } catch { alert('No se pudo abrir esa imagen.'); return; }
+    const l = {
+      id: newId(), type: 'img', name: file.name, visible: true, img, imgId: null, x: 0, y: 0, w: 400, rot: 0, opacity: 1,
+      // photos keep their background; logos on a flat background lose it
+      o: { mode: 'color', thr: 35, removeBg: Suite.fondoUniforme(img), invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: 2400 },
+    };
+    rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
+  }
+  $('addImg').onclick = () => $('imgFile').click();
+  $('imgFile').onchange = e => { const f = e.target.files[0]; e.target.value = ''; addImage(f); };
+  $('addText').onclick = async () => {
+    const f = FUENTES[0] || { n: 'system-ui', p: 700 };
+    const l = { id: newId(), type: 'text', visible: true, text: 'Tu texto', font: f.n, peso: f.p, color: '#111111', def: 'none', defAmt: 50, esp: 0, fs: 150, x: 0, y: 0, w: 400, rot: 0, opacity: 1 };
+    await fontReady(l);
+    rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
+    $('txt').focus(); $('txt').select();
+  };
+  $('addContact').onclick = () => {
+    const l = { id: newId(), type: 'contact', visible: true, c: { ig: '', wa: '', web: '', dir: '', mail: '', fb: '' }, lines: true, color: '#111111', fs: 34, x: 0, y: 0, w: 400, rot: 0, opacity: 1 };
+    rebuild(l); centerLayer(l); addLayer(l);
+    $('c_ig').focus();
+  };
+
+  // ---------- UI: selected layer ----------
+  const onSel = fn => e => { const l = sel(); if (l) fn(l, e); };
+  $('contactFields').innerHTML = Suite.CONTACT_KEYS.map(k => `<div class="row"><span>${Suite.CONTACT_LABELS[k][0]}</span><input type="text" id="c_${k}" placeholder="${Suite.CONTACT_LABELS[k][1]}"></div>`).join('');
+  Suite.CONTACT_KEYS.forEach(k => { $('c_' + k).oninput = onSel((l, e) => { l.c[k] = e.target.value; rebuild(l); showGuide(); update(); }); });
+  $('cLines').onchange = onSel((l, e) => { l.lines = e.target.checked; rebuild(l); update(); });
+  swatchRow($('txtColors'), INKS, c => { const l = sel(); if (l) { l.color = c; rebuild(l); update(); } });
+  swatchRow($('inks'), INKS, c => { const l = sel(); if (l) { l.o.ink = c; rebuild(l); update(); } });
+  swatchRow($('inks2'), INKS, c => { const l = sel(); if (l) { l.o.ink2 = c; l.o.ink2Auto = false; rebuild(l); update(); } });
+
+  $('txt').oninput = onSel((l, e) => { l.text = e.target.value; rebuild(l); showGuide(); update(); });
+  $('def').onchange = onSel((l, e) => { l.def = e.target.value; rebuild(l); showGuide(); update(); });
+  $('defAmt').oninput = onSel((l, e) => { l.defAmt = +e.target.value; rebuild(l); showGuide(); update(); });
+  $('esp').oninput = onSel((l, e) => { l.esp = +e.target.value; rebuild(l); showGuide(); update(); });
+
+  // fonts ship with the app (fonts/), so they work without internet
+  const CATS = [['', 'Todas'], ['sans', 'Rectas'], ['serif', 'Con serifa'], ['script', 'Manuscritas'], ['display', 'Decorativas']];
+  let fontCat = '';
+  document.head.append(Object.assign(document.createElement('style'), {
+    textContent: FUENTES.map(f => `@font-face{font-family:"${f.n}";src:url("fonts/${f.a}") format("woff2");font-weight:${f.p};font-display:swap}`).join('\n'),
+  }));
+  function renderFonts() {
+    $('fontCats').innerHTML = '';
+    CATS.forEach(([k, name]) => {
+      const b = document.createElement('button'); b.className = 'btn' + (fontCat === k ? ' on' : ''); b.textContent = name;
+      b.onclick = () => { fontCat = k; renderFonts(); };
+      $('fontCats').append(b);
+    });
+    const box = $('fonts'), l = sel(); box.innerHTML = '';
+    FUENTES.filter(f => !fontCat || f.c === fontCat).forEach(f => {
+      const b = document.createElement('button'); b.className = 'fbtn' + (l && l.font === f.n ? ' on' : '');
+      b.style.fontFamily = `"${f.n}", sans-serif`; b.style.fontWeight = f.p; b.textContent = f.n; b.dataset.n = f.n;
+      b.onclick = async () => {
+        const t = sel(); if (!t || t.type !== 'text') return;
+        t.font = f.n; t.peso = f.p; await fontReady(t); rebuild(t); showGuide(); update();
+      };
+      box.append(b);
+    });
+  }
+
+  function renderPalette(l) {
+    const box = $('palette'); box.innerHTML = '';
+    if (!l.o.palette || l.o.mode === 'color') return;
+    const key = l.o.mode === 'ink2' ? 'role2' : 'role1';
+    const cycle = l.o.mode === 'ink2' ? ['ink', 'ink2', 'paper'] : ['ink', 'trama', 'paper'];
+    l.o.palette.forEach(c => {
+      const b = document.createElement('button'); b.className = 'chip role-' + c[key];
+      b.innerHTML = `<i style="background:${c.hex}"></i><span>${Suite.ROLE_NAMES[c[key]]}</span>`;
+      b.title = 'Toca para cambiar';
+      b.onclick = () => { c[key] = cycle[(cycle.indexOf(c[key]) + 1) % cycle.length]; c.manual = true; rebuild(l); update(); };
+      box.append(b);
+    });
+  }
+  $('mode').onchange = onSel((l, e) => { l.o.mode = e.target.value; rebuild(l); update(); });
+  $('thr').oninput = onSel((l, e) => { l.o.thr = +e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
+  $('rmBg').onchange = onSel((l, e) => { l.o.removeBg = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
+  $('invert').onchange = onSel((l, e) => { l.o.invert = e.target.checked; rebuild(l); update(); });
+
+  // sliders that move/resize: smooth live preview, full quality when you let go
+  $('size').oninput = onSel((l, e) => { scaleLayer(l, +e.target.value / l.w); showGuide(); liveUpdate(); });
+  $('rot').oninput = onSel((l, e) => { l.rot = +e.target.value; showGuide(); liveUpdate(); });
+  $('posX').oninput = onSel((l, e) => { l.x = +e.target.value; showGuide(); liveUpdate(); });
+  $('posY').oninput = onSel((l, e) => { l.y = +e.target.value; showGuide(); liveUpdate(); });
+  $('op').oninput = onSel((l, e) => { l.opacity = e.target.value / 100; update(); });
+  $('center').onclick = onSel(l => { centerLayer(l); showGuide(); update(); });
+  $('fit').onclick = onSel(l => { fitLayer(l); showGuide(); update(); });
+  $('rot0').onclick = onSel(l => { l.rot = 0; update(); });
+
+  $('layout').onchange = e => {
+    // the whole composition moves with its zone
+    const a = zone(), b = zone(e.target.value), dx = (b.x + b.w / 2) - (a.x + a.w / 2);
+    S.layout = e.target.value;
+    S.layers.forEach(l => { l.x += dx; if (l.type === 'contact') rebuild(l); });
+    lookAtZone(); update();
+  };
+
+  let lastSig = '';
+  function syncControls() {
+    const l = sel(), t = l && l.type;
+    $('capaCtl').classList.toggle('hidden', !l);
+    $('layout').value = S.layout;
+    markSw($('colBody'), S.colors.body); markSw($('colInside'), S.colors.inside); markSw($('colHandle'), S.colors.handle);
+    $('hint').innerHTML = '<span class="hint-desk">Arrastra una capa para moverla · arrastra fuera para girar la taza · Ctrl + rueda cambia el tamaño · flechas para ajuste fino</span>'
+      + '<span class="hint-touch">Un dedo mueve la capa o gira la taza · dos dedos agrandan y giran</span>';
+    if (!l) return;
+    $('gText').classList.toggle('hidden', t !== 'text');
+    $('gContact').classList.toggle('hidden', t !== 'contact');
+    $('gImg').classList.toggle('hidden', t !== 'img');
+    $('colorRow').classList.toggle('hidden', t === 'img');
+    if (t === 'text') {
+      if (document.activeElement !== $('txt')) $('txt').value = l.text;
+      $('def').value = l.def; $('defAmt').value = l.defAmt; $('defAmtO').textContent = l.defAmt;
+      $('defAmtRow').classList.toggle('hidden', l.def === 'none');
+      $('esp').value = l.esp; $('espO').textContent = l.esp;
+      document.querySelectorAll('#fonts .fbtn').forEach(b => b.classList.toggle('on', b.dataset.n === l.font));
+    }
+    if (t === 'contact') {
+      Suite.CONTACT_KEYS.forEach(k => { if (document.activeElement !== $('c_' + k)) $('c_' + k).value = l.c[k] || ''; });
+      $('cLines').checked = l.lines;
+    }
+    if (t !== 'img') markSw($('txtColors'), l.color);
+    if (t === 'img') {
+      const o = l.o, ink = o.mode !== 'color';
+      $('mode').value = o.mode; $('thr').value = o.thr; $('thrO').textContent = o.thr;
+      $('rmBg').checked = o.removeBg; $('invert').checked = o.invert;
+      $('inkRow').classList.toggle('hidden', !ink);
+      $('ink2Row').classList.toggle('hidden', o.mode !== 'ink2');
+      $('palRow').classList.toggle('hidden', !ink || !o.palette || o.palette.length < 2);
+      $('rmBgRow').classList.toggle('hidden', ink);
+      $('thrRow').classList.toggle('hidden', !ink && !o.removeBg);
+      $('thrNote').classList.toggle('hidden', !ink && !o.removeBg);
+      $('invertRow').classList.toggle('hidden', o.mode !== 'ink');
+      markSw($('inks'), o.ink); markSw($('inks2'), o.ink2);
+      const sig = l.id + o.mode + '|' + (o.palette || []).map(c => c.hex + c.role1 + c.role2).join(',');
+      if (sig !== lastSig) { lastSig = sig; renderPalette(l); }
+    }
+    $('op').value = Math.round(l.opacity * 100); $('opO').textContent = Math.round(l.opacity * 100) + '%';
+    syncTransform();
+  }
+  function syncTransform() {
+    const l = sel(); if (!l) return;
+    const d = D();
+    $('size').max = Math.round(d.w * 1.5); $('size').value = Math.round(l.w); $('sizeO').textContent = cm(l.w / U);
+    $('rot').value = l.rot; $('rotO').textContent = l.rot + '°';
+    $('posX').max = d.w; $('posX').value = Math.round(l.x); $('posXO').textContent = cm(l.x / U);
+    $('posY').max = d.h; $('posY').value = Math.round(l.y); $('posYO').textContent = cm(l.y / U);
+  }
+
+  // ---------- real size ----------
+  function showSizes() {
+    const l = sel(), g = geo(), lines = [];
+    if (l && l.proc) {
+      const b = bounds(corners(l));
+      lines.push(`<b>Capa:</b> ${cm(b.w / U)} × ${cm(b.h / U)} cm · a ${cm(b.y / U)} cm del borde superior de la impresión`);
+    }
+    if (g.ox < 60) lines.push('⚠ La impresión es más ancha que el espacio que deja el asa: revisa el ancho o el diámetro.');
+    if (g.oy < 0) lines.push('⚠ La impresión es más alta que la taza: revisa las medidas.');
+    $('sizeInfo').innerHTML = lines.join('<br>');
+    $('exportPrint').disabled = !S.layers.some(x => x.proc && x.visible);
+  }
+  const parseCm = v => { const n = parseFloat(String(v).replace(',', '.')); return n > 1 && n < 100 ? n : null; };
+  const DIM_FIELDS = [['dimW', 'impW'], ['dimH', 'impH'], ['mugH', 'alto'], ['mugD', 'diam']];
+  function syncDims() {
+    DIM_FIELDS.forEach(([id, k]) => { if (document.activeElement !== $(id)) $(id).value = String(S.model[k] / 10).replace('.', ','); });
+  }
+  DIM_FIELDS.forEach(([id, k]) => {
+    $(id).oninput = () => {
+      const v = parseCm($(id).value); if (!v) return;
+      keepRelative(() => { S.model[k] = Math.round(v * 10); });
+      const m = S.model, vals = { alto: m.alto, diam: m.diam, impW: m.impW, impH: m.impH };
+      // measurements are remembered per model on this phone
+      if (m.local) {
+        Object.assign(MODELOS.find(x => x.id === m.id) || {}, vals);
+        db.run('modelos', 'readwrite', st => st.put({ ...m })).catch(() => { });
+      } else { try { const all = loadMed(); all[m.id] = vals; localStorage.setItem(MED_KEY, JSON.stringify(all)); } catch { } }
+      buildMug(); renderModels(); update();
+    };
+  });
+
+  // ---------- pointer: drag a layer / turn the mug, on the 3D view and on the flat canvas ----------
+  const ray = T ? new T.Raycaster() : null, ndc = T ? new T.Vector2() : null;
+  // screen point → design space, through the mug's surface (null when it misses the printable wall)
+  function pick3d(e) {
+    if (!renderer || !mug) return null;
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const hits = ray.intersectObjects(mug.children, false);
+    if (!hits.length || hits[0].object !== wall) return null;
+    const g = geo(), uv = hits[0].uv;
+    return { x: uv.x * g.C - g.ox, y: (1 - uv.y) * g.Hw - g.oy };
+  }
+  function pickFlat(e) {
+    const r = cv.getBoundingClientRect(), k = flatK() * r.width / cv.width;
+    return { x: (e.clientX - r.left) / k - FM / flatK(), y: (e.clientY - r.top) / k - FM / flatK() };
+  }
+  const ptrs = new Map();   // active fingers (screen coords)
+  const pinch = () => { const [a, b] = [...ptrs.values()]; return { d: Math.hypot(b.x - a.x, b.y - a.y) || 1, ang: Math.atan2(b.y - a.y, b.x - a.x) }; };
+  // in "two sides" the right half is a copy: touching it edits the original on the left
+  const halfOf = p => S.layout === 'dos' && p.x > D().w / 2 ? D().w / 2 : 0;
+
+  function surface(el, is3d) {
+    const pick = is3d ? pick3d : pickFlat;
+    el.addEventListener('pointerdown', e => {
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      try { el.setPointerCapture(e.pointerId); } catch { }
+      if (ptrs.size === 2) {
+        // second finger: pinch the layer being dragged; on the mug itself, zoom the camera
+        const l = drag && drag.layer || (!is3d && sel()) || null, { d, ang } = pinch();
+        if (l) { S.sel = l.id; drag = { pinch: true, layer: l, d0: d, a0: ang, w0: l.w, rot0: l.rot }; showUI = true; clearTimeout(uiTimer); }
+        else if (is3d) drag = { zoom: true, d0: d, z0: cam.zoom };
+        return;
+      }
+      if (ptrs.size > 2) return;
+      const p = pick(e);
+      let l = null, dx = 0;
+      if (p) { dx = halfOf(p); l = hitLayer({ x: p.x - dx, y: p.y }); }
+      // on the flat canvas, like in MyBags, dragging anywhere moves the selected layer
+      if (!l && !is3d && p && sel() && sel().proc) l = sel();
+      if (l) {
+        const changed = S.sel !== l.id; S.sel = l.id;
+        drag = { layer: l, dx, ox: p.x - dx - l.x, oy: p.y - l.y };
+        showUI = true; clearTimeout(uiTimer);
+        if (changed) { syncControls(); renderLayers(); }
+        render();
+      } else if (is3d) drag = { orbit: true, x: e.clientX, y: e.clientY, yaw: cam.yaw, pitch: cam.pitch };
+      el.style.cursor = 'grabbing'; el.focus && el.focus({ preventScroll: true });
+    });
+    el.addEventListener('pointermove', e => {
+      if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (!drag) return;
+      if (drag.pinch) {
+        if (ptrs.size < 2) return;
+        const { d, ang } = pinch(), l = drag.layer;
+        scaleLayer(l, drag.w0 * d / drag.d0 / l.w);
+        l.rot = Math.round(((drag.rot0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
+        liveUpdate(); return;
+      }
+      if (drag.zoom) { if (ptrs.size >= 2) { cam.zoom = clamp(drag.z0 * pinch().d / drag.d0, 0.6, 2.6); scheduleRender(); } return; }
+      if (drag.orbit) {
+        cam.yaw = drag.yaw - (e.clientX - drag.x) * 0.011;
+        cam.pitch = clamp(drag.pitch + (e.clientY - drag.y) * 0.008, 0.02, 1.25);
+        scheduleRender(); return;
+      }
+      const p = pick(e); if (!p) return;
+      drag.layer.x = p.x - drag.dx - drag.ox; drag.layer.y = p.y - drag.oy;
+      liveUpdate();
+    });
+    const end = e => {
+      ptrs.delete(e.pointerId);
+      // lifting one finger of a pinch ends the gesture (no jump back to one-finger drag)
+      if (drag && (drag.pinch || drag.zoom) && ptrs.size) { const was = drag.pinch; drag = null; if (was) { live = false; sharpen(); showGuide(); render(); } return; }
+      if (!drag) return;
+      const moved = drag.layer; drag = null; el.style.cursor = 'grab';
+      if (moved) { live = false; sharpen(); showGuide(); render(); syncTransform(); showSizes(); }
+    };
+    el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+    el.addEventListener('wheel', e => {
+      const p = pick(e), l = p && (hitLayer({ x: p.x - halfOf(p), y: p.y }) || (!is3d && sel()));
+      const k = e.deltaY < 0 ? 1.05 : 1 / 1.05;
+      // Ctrl + wheel resizes the layer under the pointer; on the mug, the plain wheel zooms the camera
+      if (e.ctrlKey && l) { e.preventDefault(); S.sel = l.id; scaleLayer(l, k); showGuide(); liveUpdate(); syncControls(); }
+      else if (is3d && !e.ctrlKey) { e.preventDefault(); cam.zoom = clamp(cam.zoom * k, 0.6, 2.6); scheduleRender(); }
+    }, { passive: false });
+    el.addEventListener('keydown', e => {
+      const l = sel(); if (!l) return;
+      const step = e.shiftKey ? 50 : 10;
+      const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+      if (d) { e.preventDefault(); l.x += d[0]; l.y += d[1]; showGuide(); liveUpdate(); }
+    });
+    // drop an image straight onto the mug or the canvas
+    el.addEventListener('dragover', e => e.preventDefault());
+    el.addEventListener('drop', e => { e.preventDefault(); addImage(e.dataTransfer.files[0]); });
+  }
+
+  // ---------- views ----------
+  document.querySelectorAll('.tabs .btn').forEach(b => { b.onclick = () => setStage(b.dataset.s); });
+  function setStage(s) {
+    document.body.dataset.stage = s;
+    document.querySelectorAll('.tabs .btn').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+    resize3d(); render();
+  }
+  document.querySelectorAll('#views .btn').forEach(b => { b.onclick = () => { cam.yaw = VIEWS[b.dataset.v](); cam.pitch = 0.2; cam.zoom = 1; render(); }; });
+
+  // ---------- photos & print file ----------
+  const BGS = { oscuro: ['#3a3d45', '#22242a'], claro: ['#f4f4f6', '#d5d6db'], blanco: ['#ffffff', '#ffffff'] };
+  // one clean picture of the mug from a given angle (no guides), size × size pixels
+  function shot(yaw, pitch, zoom, size, bg) {
+    const c = newCanvas(size, size), x = c.getContext('2d');
+    if (bg) { const g = x.createLinearGradient(0, 0, 0, size); g.addColorStop(0, BGS[bg][0]); g.addColorStop(1, BGS[bg][1]); x.fillStyle = g; x.fillRect(0, 0, size, size); }
+    if (!renderer) return c;
+    const prev = { ...cam }, pr = renderer.getPixelRatio(), old = renderer.getSize(new T.Vector2()), aspect = camera.aspect;
+    renderer.setPixelRatio(1); renderer.setSize(size, size, false); camera.aspect = 1;
+    Object.assign(cam, { yaw, pitch, zoom });
+    paint(texHi, false); matBody.map = texHi; placeCamera(); renderer.render(scene, camera);
+    x.drawImage(renderer.domElement, 0, 0, size, size);
+    Object.assign(cam, prev); camera.aspect = aspect;
+    renderer.setPixelRatio(pr); renderer.setSize(old.x, old.y, false);
+    render();
+    return c;
+  }
+  function mockup() {
+    const list = [];
+    if ($('fAct').checked) list.push([cam.yaw, cam.pitch, cam.zoom]);
+    if ($('fIzq').checked) list.push([VIEWS.izq(), 0.2, 1]);
+    if ($('fFre').checked) list.push([VIEWS.fre(), 0.2, 1]);
+    if ($('fDer').checked) list.push([VIEWS.der(), 0.2, 1]);
+    if (!list.length) list.push([cam.yaw, cam.pitch, cam.zoom]);
+    const n = list.length, size = n === 1 ? 1400 : 1000, cols = n === 4 ? 2 : n, rows = Math.ceil(n / cols);
+    const out = newCanvas(cols * size, rows * size), x = out.getContext('2d');
+    list.forEach((v, i) => x.drawImage(shot(v[0], v[1], v[2], size, $('fondo').value), (i % cols) * size, Math.floor(i / cols) * size));
+    return out;
+  }
+  const clientSuffix = () => { const c = app.cliente ? Suite.nombreArchivo(app.cliente.nombre) : ''; return c ? '-' + c : ''; };
+  $('export').onclick = () => mockup().toBlob(b => Suite.descargar(b, `mockup-taza${clientSuffix()}.png`), 'image/png');
+  if (Suite.puedeCompartir()) {
+    $('share').classList.remove('hidden');
+    $('share').onclick = () => mockup().toBlob(b => Suite.compartir(b, `mockup-taza${clientSuffix()}.png`), 'image/png');
+  }
+  // the strip alone at real size, 300 dpi, mirrored for sublimation
+  const DPI = 300;
+  function printCanvas(mirror) {
+    const { w, h } = D(), k = DPI / 25.4 / U, c = newCanvas(Math.round(w * k), Math.round(h * k)), x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+    if (mirror) { x.translate(c.width, 0); x.scale(-1, 1); }
+    x.scale(k, k); x.imageSmoothingQuality = 'high';
+    drawStrip(x);
+    return c;
+  }
+  $('exportPrint').onclick = () => {
+    const mirror = $('mirror').checked, m = S.model;
+    printCanvas(mirror).toBlob(async b => {
+      try { b = await Suite.pngConDpi(b, DPI); } catch { }
+      Suite.descargar(b, `impresion-taza${clientSuffix()}-${String(m.impW / 10).replace('.', ',')}x${String(m.impH / 10).replace('.', ',')}cm${mirror ? '-espejo' : ''}.png`);
+    }, 'image/png');
+  };
+
+  // ---------- clients & versions (shared shell) ----------
+  const db = Suite.openDB('mymugs');
+  const LAYER_KEYS = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'rot', 'opacity', 'fs', 'text', 'font', 'peso', 'color', 'def', 'defAmt', 'esp', 'lines', 'imgId'];
+  const app = Suite.shell({
+    nombre: 'MyMugs', id: 'conceptualizador-tazas', sufijo: 'tazas', db,
+    hooks: {
+      async nuevo() {
+        S.layers = []; S.sel = null; S.layout = 'der';
+        lookAtZone(); syncDims(); renderModels(); update();
+      },
+      async abrir(d) {
+        const st = d.estado;
+        S.model = { ...st.modelo }; S.colors = { ...st.colores }; S.layout = st.layout;
+        buildMug();
+        S.layers = [];
+        for (const src of st.capas) {
+          const l = { ...src };
+          if (src.o) l.o = { ...src.o };
+          if (src.c) l.c = { ...src.c };
+          if (l.type === 'img') {
+            try { const rec = await db.run('logos', 'readonly', s => s.get(l.imgId)); l.img = rec ? await imgFrom(rec.src) : null; } catch { l.img = null; }
+          } else if (l.type === 'text') await fontReady(l);
+          rebuild(l); S.layers.push(l);
+        }
+        S.sel = S.layers.length ? S.layers[S.layers.length - 1].id : null;
+        if (st.cam) Object.assign(cam, st.cam); else lookAtZone();
+        syncDims(); renderModels(); update();
+      },
+      async guardar() {
+        for (const l of S.layers) if (l.type === 'img' && l.img && !l.imgId) {
+          l.imgId = newId();
+          await db.run('logos', 'readwrite', st => st.put({ id: l.imgId, src: l.img.src, nombre: l.name }));
+        }
+        const capas = S.layers.map(l => {
+          const o = {}; LAYER_KEYS.forEach(k => { if (l[k] !== undefined) o[k] = l[k]; });
+          if (l.o) o.o = { ...l.o }; if (l.c) o.c = { ...l.c };
+          return o;
+        });
+        // 3:4 thumbnail of the current view
+        const s = shot(cam.yaw, cam.pitch, cam.zoom, 480, 'oscuro'), t = newCanvas(360, 480);
+        t.getContext('2d').drawImage(s, 60, 0, 360, 480, 0, 0, 360, 480);
+        return {
+          estado: { modelo: { ...S.model }, colores: { ...S.colors }, layout: S.layout, capas, cam: { ...cam } },
+          imgIds: S.layers.map(l => l.imgId).filter(Boolean), etiqueta: S.model.nombre, thumb: t.toDataURL('image/jpeg', 0.8),
+        };
+      },
+      sucio: () => S.dirty && S.layers.length > 0,
+      limpio: () => { S.dirty = false; },
+      alEditor: () => { resize3d(); render(); },
+      respaldo: () => ({ medidas: loadMed() }),
+      restaurar: extra => { try { localStorage.setItem(MED_KEY, JSON.stringify({ ...(extra.medidas || {}), ...loadMed() })); } catch { } },
+    },
+  });
+
+  // ---------- start ----------
+  init3d();
+  S.model = withMed(MODELOS[0]);
+  buildMug(); lookAtZone();
+  if (renderer) surface($('view3d'), true);
+  cv.tabIndex = 0; surface(cv, false);
+  renderFonts(); syncDims(); renderModels(); setStage('3d'); update(); S.dirty = false;
+  db.all('modelos').then(list => { list.sort((a, b) => a.creado - b.creado).forEach(m => MODELOS.push({ ...m, local: true })); renderModels(); });
+  // lets the automated tests drive the editor
+  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone };
+  app.iniciar();
+})();
+</script>
 </body>
 </html>

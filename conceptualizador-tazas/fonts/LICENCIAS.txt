@@ -1,0 +1,9 @@
+Tipografías incluidas en MyMugs
+===============================
+Todas provienen de Google Fonts (descargadas del paquete @fontsource de cada una)
+y son de uso libre, también comercial: licencia SIL Open Font License 1.1 o
+Apache License 2.0, según la tipografía. La licencia y los autores de cada una
+están en https://fonts.google.com (buscar por el nombre que aparece en fonts.js).
+
+SIL OFL 1.1:      https://openfontlicense.org
+Apache 2.0:       https://www.apache.org/licenses/LICENSE-2.0
