@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Conceptualizador de Bolsas</title>
+<title>MyBags</title>
 <link rel="manifest" href="manifest.webmanifest">
-<meta name="theme-color" content="#b4441a">
+<meta name="theme-color" content="#111111">
 <link rel="icon" type="image/png" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Bolsas">
+<meta name="apple-mobile-web-app-title" content="MyBags">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <style>
   :root {
@@ -67,6 +67,33 @@
   .stage { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 0; }
   #cv { width: auto; height: auto; max-width: 100%; max-height: calc(100vh - 150px); border-radius: 12px; touch-action: none; cursor: grab; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
   .hint { font-size: 12px; color: var(--muted); text-align: center; }
+  /* screens: clients list → one client's versions → editor */
+  body:not([data-view="editor"]) main { display: none; }
+  body:not([data-view="clients"]) #clientsView, body:not([data-view="client"]) #clientView { display: none; }
+  .view { flex: 1; overflow-y: auto; }
+  .view-in { max-width: 900px; margin: 0 auto; padding: 20px 16px 40px; }
+  .view-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 8px 0 14px; }
+  h2.big { font-size: 24px; text-transform: none; letter-spacing: 0; color: var(--text); margin: 0; }
+  #clientSearch { width: 100%; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; background: var(--panel); }
+  .clist, .vlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .ccard, .vcard { display: flex; gap: 12px; align-items: center; padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; text-align: left; font: inherit; color: inherit; }
+  .ccard { cursor: pointer; }
+  .ccard:hover { border-color: var(--accent); }
+  .ccard b, .vcard b { display: block; font-size: 16px; }
+  .thumb { width: 60px; height: 76px; border-radius: 8px; object-fit: cover; background: #ebe7df; flex-shrink: 0; }
+  .vlist { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); }
+  .vcard { flex-direction: column; align-items: stretch; gap: 4px; }
+  .vcard .thumb { width: 100%; height: auto; aspect-ratio: 3 / 4; cursor: pointer; margin-bottom: 6px; }
+  .vcard .btns { margin-top: 8px; }
+  .vcard .btns .btn { flex: 1; }
+  .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .nota { font-size: 13px; font-style: italic; }
+  .empty { grid-column: 1 / -1; color: var(--muted); padding: 30px 0; text-align: center; }
+  .view-foot { margin-top: 28px; font-size: 13px; color: var(--muted); text-align: center; }
+  .view-foot .link { font-size: 13px; }
+  #toClients { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: #1f1d1a; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.on { opacity: 1; }
   .hint-touch { display: none; }
   @media (pointer: coarse) { .hint-touch { display: inline; } .hint-desk { display: none; } }
   .sizeinfo { font-size: 13px; background: var(--accent-soft); border-radius: 8px; padding: 8px 10px; margin: 4px 0 10px; line-height: 1.5; }
@@ -98,11 +125,43 @@
   }
 </style>
 </head>
-<body>
+<body data-view="clients">
 <header>
-  <h1>Conceptualizador de Bolsas</h1>
-  <label>Cliente <input id="client" placeholder="Nombre del cliente"></label>
+  <button class="btn hidden" id="toClients">‹ Clientes</button>
+  <h1 id="title">MyBags</h1>
+  <button class="btn primary hidden" id="saveVersion">Guardar versión</button>
 </header>
+
+<section class="view" id="clientsView">
+  <div class="view-in">
+    <div class="view-head">
+      <h2 class="big">Mis clientes</h2>
+      <button class="btn primary" id="newClient">+ Nuevo cliente</button>
+    </div>
+    <input type="search" id="clientSearch" placeholder="Buscar cliente…">
+    <div class="clist" id="clientList"></div>
+    <div class="view-foot">
+      <button class="link" id="quickTry">Probar sin cliente</button> ·
+      <button class="link" id="backupBtn">Respaldar</button> ·
+      <label class="link">Restaurar<input type="file" id="restoreFile" accept=".json,application/json" class="hidden"></label>
+      <div class="note">Los clientes y diseños se guardan en este teléfono. Usa “Respaldar” para pasarlos a otro teléfono o a tu socio.</div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="clientView">
+  <div class="view-in">
+    <button class="link" id="backToClients">‹ Mis clientes</button>
+    <div class="view-head">
+      <h2 class="big" id="clientName"></h2>
+      <button class="btn primary" id="newDesign">+ Nuevo diseño</button>
+    </div>
+    <div class="note" style="margin-bottom:14px"><button class="link" id="renameClient">Cambiar nombre</button> · <button class="link" id="deleteClient">Eliminar cliente</button></div>
+    <div class="vlist" id="versionList"></div>
+  </div>
+</section>
+
+<div class="toast" id="toast"></div>
 
 <main>
   <aside>
@@ -453,6 +512,7 @@
     x: 500, y: 610, w: 300, rot: 0, opacity: 1, blend: 'source-over', clip: true,
     mode: 'ink', ink: BLACK, ink2: '#f2a0b8', ink2Auto: true, thr: 35, removeBg: true, invert: false,
     palette: null, paletteDirty: true, dims: null,
+    clientId: null, clientName: '', designN: null, dirty: false, logoId: null, logoName: '',
     texture: true,
     contact: { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0 },
     cBox: null, editCorners: false,
@@ -902,7 +962,7 @@
     frame = requestAnimationFrame(() => { frame = 0; render(); syncTransform(); showSizes(); });
   }
   function liveUpdate() {
-    live = true; scheduleRender();
+    live = true; S.dirty = true; scheduleRender();
     clearTimeout(liveTimer);
     liveTimer = setTimeout(() => { if (!drag) { live = false; render(); } }, 160);
   }
@@ -1098,7 +1158,7 @@
     $('customColor').value = S.bagColor;
     $('photoLabel').textContent = S.photo && S.model === null ? '✓ Usando tu foto · clic para cambiarla' : '…o sube otra foto de bolsa';
     $('cornerBtns').classList.toggle('hidden', S.model === null);
-    $('delModel').classList.toggle('hidden', !(S.model !== null && MODELOS[S.model] && MODELOS[S.model].local));
+    $('delModel').classList.toggle('hidden', S.model === null);
     syncDims();
     $('editCorners').textContent = S.editCorners ? '✓ Listo' : 'Ajustar esquinas del frente';
     $('editCorners').classList.toggle('on', S.editCorners);
@@ -1109,7 +1169,7 @@
       + '<span class="hint-touch">Un dedo mueve · dos dedos agrandan y giran</span>';
   }
   let lastPalSig = '';
-  const update = () => { syncControls(); render(); showSizes(); };
+  const update = () => { syncControls(); render(); showSizes(); S.dirty = true; };
 
   function syncTransform() {
     const D = design();
@@ -1133,7 +1193,9 @@
   function renderModelTiles() {
     const box = $('misModelos'); box.innerHTML = '';
     $('misModelosBox').classList.remove('hidden');
+    const hidden = hiddenModels();
     MODELOS.forEach((m, i) => {
+      if (hidden.has(m.archivo)) return;
       const b = document.createElement('button'); b.className = 'tpl modelo'; b.dataset.i = i; b.title = m.nombre;
       const img = new Image(); img.src = m.src; img.alt = m.nombre;
       b.append(img, m.nombre);
@@ -1144,27 +1206,36 @@
     add.innerHTML = '<b>+</b>Agregar bolsa';
     add.onclick = () => $('addModelFile').click();
     box.append(add);
+    const nHidden = MODELOS.filter(m => hidden.has(m.archivo)).length;
+    if (nHidden) {
+      const show = document.createElement('button'); show.className = 'link'; show.style.gridColumn = '1 / -1';
+      show.textContent = `Mostrar bolsas ocultas (${nHidden})`;
+      show.onclick = () => { saveHidden(new Set()); renderModelTiles(); };
+      box.append(show);
+    }
     syncControls();
   }
 
   // ---------- bags saved on this device (IndexedDB: survives closing the app) ----------
   const db = new Promise(res => {
     try {
-      const r = indexedDB.open('conceptualizador', 1);
-      r.onupgradeneeded = () => r.result.createObjectStore('modelos', { keyPath: 'id' });
+      const r = indexedDB.open('conceptualizador', 2);
+      r.onupgradeneeded = () => ['modelos', 'clientes', 'disenos', 'logos'].forEach(n => {
+        if (!r.result.objectStoreNames.contains(n)) r.result.createObjectStore(n, { keyPath: 'id' });
+      });
       r.onsuccess = () => res(r.result); r.onerror = () => res(null);
     } catch { res(null); }
   });
-  async function dbDo(mode, fn) {
-    const d = await db; if (!d) throw new Error('Este navegador no permite guardar bolsas');
+  async function dbDo(store, mode, fn) {
+    const d = await db; if (!d) throw new Error('este navegador no permite guardar datos');
     return new Promise((res, rej) => {
-      const tx = d.transaction('modelos', mode), r = fn(tx.objectStore('modelos'));
+      const tx = d.transaction(store, mode), r = fn(tx.objectStore(store));
       tx.oncomplete = () => res(r && r.result); tx.onerror = () => rej(tx.error);
     });
   }
   async function loadLocalModels() {
     try {
-      const list = await dbDo('readonly', st => st.getAll());
+      const list = await dbDo('modelos', 'readonly', st => st.getAll());
       (list || []).sort((a, b) => a.creado - b.creado).forEach(m =>
         MODELOS.push({ nombre: m.nombre, archivo: 'local:' + m.id, id: m.id, src: m.src, area: null, local: true }));
     } catch { }
@@ -1182,33 +1253,48 @@
     const nombre = (prompt('Nombre de esta bolsa (ej. Kraft chica):', 'Mi bolsa ' + (local + 1)) || '').trim();
     if (!nombre) return;
     const rec = { id: Date.now().toString(36), nombre, src: c.toDataURL('image/jpeg', 0.88), creado: Date.now() };
-    try { await dbDo('readwrite', st => st.put(rec)); }
+    try { await dbDo('modelos', 'readwrite', st => st.put(rec)); }
     catch (err) { alert('No se pudo guardar la bolsa: ' + err.message); return; }
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
     MODELOS.push({ nombre, archivo: 'local:' + rec.id, id: rec.id, src: rec.src, area: null, local: true });
     renderModelTiles();
     // straight into corner adjustment: that's what makes the logo follow the bag's perspective
-    selectModel(MODELOS.length - 1, true);
+    selectModel(MODELOS.length - 1, { editCorners: true });
   };
+  // published bags can't be deleted from the phone: they're hidden here and can be brought back
+  const HIDDEN_KEY = 'conceptualizador.ocultos';
+  function hiddenModels() { try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY)) || []); } catch { return new Set(); } }
+  function saveHidden(set) { try { localStorage.setItem(HIDDEN_KEY, JSON.stringify([...set])); } catch { } }
   $('delModel').onclick = async () => {
     const m = MODELOS[S.model];
-    if (!m || !m.local || !confirm(`¿Eliminar "${m.nombre}" de este teléfono?`)) return;
-    try { await dbDo('readwrite', st => st.delete(m.id)); } catch { }
-    MODELOS.splice(S.model, 1);
-    const all = loadCorners(); delete all[m.archivo]; saveCorners(all);
-    saveDims(m.archivo, null);
+    if (!m) return;
+    if (m.local) {
+      if (!confirm(`¿Eliminar "${m.nombre}"? Los diseños guardados con esta bolsa se abrirán con otra.`)) return;
+      try { await dbDo('modelos', 'readwrite', st => st.delete(m.id)); } catch { }
+      MODELOS.splice(S.model, 1);
+      const all = loadCorners(); delete all[m.archivo]; saveCorners(all);
+      saveDims(m.archivo, null);
+    } else {
+      if (!confirm(`¿Quitar "${m.nombre}" de tus bolsas? Podrás recuperarla con “Mostrar bolsas ocultas”.`)) return;
+      const h = hiddenModels(); h.add(m.archivo); saveHidden(h);
+    }
     S.model = null; renderModelTiles();
-    if (MODELOS.length) selectModel(0); else { setPhoto(null); resetPlacement(); autoInk(); update(); }
+    const i = firstVisible();
+    if (i >= 0) selectModel(i); else { setPhoto(null); resetPlacement(); autoInk(); update(); }
   };
-  function selectModel(i, editCorners = false) {
+  function selectModel(i, { editCorners = false, keep = false } = {}) {
     const m = MODELOS[i], img = new Image();
-    img.onload = () => {
-      S.model = i; S.editCorners = false;
-      setPhoto(img); S.model = i; S.dims = storedDims(m.archivo, m); setQuad(modelQuad(m)); refreshDetail();
-      resetPlacement();
-      autoInk(); S.editCorners = editCorners; update();
-    };
-    img.src = m.src;
+    return new Promise(res => {
+      img.onload = () => {
+        S.model = i; S.editCorners = false;
+        setPhoto(img); S.model = i; S.dims = storedDims(m.archivo, m); setQuad(modelQuad(m)); refreshDetail();
+        if (!keep) { resetPlacement(); autoInk(); }
+        S.editCorners = editCorners; update();
+        res();
+      };
+      img.onerror = () => res();
+      img.src = m.src;
+    });
   }
 
   function swatchRow(box, list, get, set) {
@@ -1251,6 +1337,7 @@
   async function setLogo(file) {
     if (!file || !file.type.startsWith('image/')) return;
     S.logo = await loadImage(file);
+    S.logoId = null; S.logoName = file.name;
     S.ink2Auto = true; S.invert = false; $('invert').checked = false;
     S.palette = null; S.paletteDirty = true;
     processLogo(); centerLogo(); fitLogo();
@@ -1547,7 +1634,7 @@
       if (t) add('Tinta_1', `Tinta 1 ${inkName(S.ink)}`, S.ink,
         `<g id="Franja_contacto" transform="translate(${r2((b.x - face.x) * k)} ${r2((b.y - face.y) * k)}) scale(${r2(k / z * t.scale)})"><path fill-rule="evenodd" d="${t.d}"/></g>`);
     }
-    const client = $('client').value.trim();
+    const client = S.clientName;
     const model = S.model !== null ? MODELOS[S.model].nombre : TEMPLATES[S.template] ? TEMPLATES[S.template].name : '';
     return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${r2(W)}mm" height="${r2(H)}mm" viewBox="0 0 ${r2(W)} ${r2(H)}">
@@ -1574,9 +1661,261 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     }, 30);
   };
 
+  // ---------- clients & design versions (saved on this device) ----------
+  const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const fmtDate = t => new Date(t).toLocaleDateString('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
+  const esc = t => String(t).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
+  const imgFrom = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+  const getAll = async store => { try { return (await dbDo(store, 'readonly', st => st.getAll())) || []; } catch { return []; } };
+  const designsOf = async cid => (await getAll('disenos')).filter(d => d.clienteId === cid);
+  const bagName = d => d.estado.bolsa.nombre || (TEMPLATES[d.estado.bolsa.plantilla] || {}).name || 'Bolsa';
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+
+  function showView(v) {
+    document.body.dataset.view = v;
+    updateHeader();
+    window.scrollTo(0, 0);
+    if (v === 'editor') render();
+  }
+  function updateHeader() {
+    const ed = document.body.dataset.view === 'editor';
+    $('toClients').classList.toggle('hidden', !ed);
+    $('saveVersion').classList.toggle('hidden', !ed || !S.clientId);
+    $('toClients').textContent = '‹ ' + (S.clientId ? S.clientName : 'Clientes');
+    $('title').textContent = !ed ? 'MyBags'
+      : S.clientId ? (S.designN ? `Versión ${S.designN}` : 'Nuevo diseño') : 'Prueba rápida';
+  }
+
+  async function renderClients() {
+    const q = $('clientSearch').value.trim().toLowerCase();
+    const designs = await getAll('disenos');
+    const clients = (await getAll('clientes'))
+      .filter(c => c.nombre.toLowerCase().includes(q))
+      .sort((a, b) => (b.actualizado || 0) - (a.actualizado || 0));
+    const box = $('clientList'); box.innerHTML = '';
+    if (!clients.length) {
+      box.innerHTML = `<div class="empty">${q ? 'No hay clientes con ese nombre.' : 'Aún no tienes clientes. Crea el primero con “+ Nuevo cliente”.'}</div>`;
+      return;
+    }
+    clients.forEach(c => {
+      const ds = designs.filter(d => d.clienteId === c.id).sort((a, b) => b.n - a.n);
+      const b = document.createElement('button'); b.className = 'ccard';
+      b.innerHTML = (ds[0] ? `<img class="thumb" src="${ds[0].thumb}" alt="">` : '<div class="thumb"></div>')
+        + `<div><b>${esc(c.nombre)}</b><div class="meta">${ds.length ? `${ds.length} ${ds.length === 1 ? 'versión' : 'versiones'} · ${fmtDate(c.actualizado)}` : 'Sin diseños aún'}</div></div>`;
+      b.onclick = () => openClient(c.id);
+      box.append(b);
+    });
+  }
+
+  async function openClient(id) {
+    const c = (await getAll('clientes')).find(x => x.id === id);
+    if (!c) { showView('clients'); renderClients(); return; }
+    S.clientId = c.id; S.clientName = c.nombre;
+    await renderVersions();
+    showView('client');
+  }
+
+  async function renderVersions() {
+    $('clientName').textContent = S.clientName;
+    const ds = (await designsOf(S.clientId)).sort((a, b) => b.n - a.n);
+    const box = $('versionList'); box.innerHTML = '';
+    if (!ds.length) { box.innerHTML = '<div class="empty">Todavía no hay diseños para este cliente. Toca “+ Nuevo diseño”.</div>'; return; }
+    ds.forEach(d => {
+      const el = document.createElement('div'); el.className = 'vcard';
+      el.innerHTML = `<img class="thumb" src="${d.thumb}" alt="">
+        <b>Versión ${d.n}</b><div class="meta">${fmtDate(d.fecha)} · ${esc(bagName(d))}</div>
+        ${d.nota ? `<div class="nota">“${esc(d.nota)}”</div>` : ''}
+        <div class="btns"><button class="btn primary">Abrir</button><button class="btn">Eliminar</button></div>`;
+      const [open, del] = el.querySelectorAll('button');
+      open.onclick = el.querySelector('img').onclick = () => openDesign(d);
+      del.onclick = async () => {
+        if (!confirm(`¿Eliminar la versión ${d.n} de ${S.clientName}?`)) return;
+        await dbDo('disenos', 'readwrite', st => st.delete(d.id));
+        renderVersions();
+      };
+      box.append(el);
+    });
+  }
+
+  // everything needed to rebuild the design later
+  function snapshot() {
+    const m = S.model !== null ? MODELOS[S.model] : null;
+    return {
+      bolsa: m ? { modelo: m.archivo, nombre: m.nombre } : { plantilla: S.template, color: S.bagColor },
+      x: S.x, y: S.y, w: S.w, rot: S.rot, opacity: S.opacity, blend: S.blend, clip: S.clip,
+      mode: S.mode, ink: S.ink, ink2: S.ink2, ink2Auto: S.ink2Auto, thr: S.thr, removeBg: S.removeBg,
+      invert: S.invert, texture: S.texture, palette: S.palette, contact: { ...S.contact }, dims: S.dims,
+    };
+  }
+  function thumbnail() {
+    const edit = S.editCorners;
+    clearTimeout(uiTimer); showUI = false; S.editCorners = false; live = false; render();
+    const k = 320 / cv.width, t = newCanvas(320, Math.round(cv.height * k));
+    t.getContext('2d').drawImage(cv, 0, 0, t.width, t.height);
+    S.editCorners = edit; render();
+    return t.toDataURL('image/jpeg', 0.8);
+  }
+  // form controls that syncControls() doesn't own
+  function syncForm() {
+    $('blend').value = S.blend; $('rmBg').checked = S.removeBg; $('invert').checked = S.invert;
+    $('texture').checked = S.texture; $('clip').checked = S.clip;
+    $('cOn').checked = S.contact.on; CONTACT_KEYS.forEach(k => { $('c_' + k).value = S.contact[k] || ''; });
+    $('cLines').checked = S.contact.lines; $('cSize').value = Math.round(S.contact.scale * 100);
+    $('logoLabel').innerHTML = S.logo ? `✓ ${esc(S.logoName || 'logo')}<br><small>toca para cambiar</small>`
+      : 'Subir logo (PNG, JPG, captura…)<br><small>o arrástralo sobre la bolsa</small>';
+  }
+  const firstVisible = () => MODELOS.findIndex(m => !hiddenModels().has(m.archivo));
+
+  async function newDesign() {
+    Object.assign(S, {
+      logo: null, proc: null, logoId: null, logoName: '', palette: null, paletteDirty: true, designN: null,
+      mode: 'ink', thr: 35, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
+      texture: true, clip: true, ink2Auto: true,
+    });
+    S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0 };
+    // same client, same contact details: start from the last version's strip
+    if (S.clientId) {
+      const last = (await designsOf(S.clientId)).sort((a, b) => b.n - a.n)[0];
+      if (last) CONTACT_KEYS.forEach(k => { S.contact[k] = last.estado.contact[k] || ''; });
+      if (last && last.estado.contact.on) S.contact.on = true;
+    }
+    $('logoFile').value = '';
+    showView('editor');
+    const keepBag = S.model !== null && !hiddenModels().has(MODELOS[S.model].archivo);
+    const i = keepBag ? S.model : firstVisible();
+    if (i >= 0) await selectModel(i); else { setPhoto(null); resetPlacement(); autoInk(); }
+    placeContact();
+    syncForm(); update(); S.dirty = false; updateHeader();
+  }
+
+  async function openDesign(d) {
+    const st = d.estado;
+    showView('editor');
+    const b = st.bolsa;
+    if (b.modelo) {
+      const i = MODELOS.findIndex(m => m.archivo === b.modelo);
+      if (i >= 0) await selectModel(i, { keep: true });
+      else {
+        alert(`La bolsa "${b.nombre}" ya no está en este teléfono; se abrirá con otra bolsa.`);
+        const j = firstVisible(); if (j >= 0) await selectModel(j, { keep: true });
+      }
+    } else { setPhoto(null); S.template = b.plantilla; S.bagColor = b.color; }
+    S.dims = st.dims || S.dims;
+    if (S.quadFrac) setQuad(S.quadFrac);
+    S.logo = null; S.logoId = d.logoId || null; S.logoName = d.logoName || '';
+    if (d.logoId) {
+      try { const rec = await dbDo('logos', 'readonly', s => s.get(d.logoId)); if (rec) S.logo = await imgFrom(rec.src); } catch { }
+    }
+    ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'removeBg', 'invert', 'texture']
+      .forEach(k => { if (st[k] !== undefined) S[k] = st[k]; });
+    S.contact = { ...S.contact, ...st.contact };
+    S.palette = st.palette || null; S.paletteDirty = !st.palette;
+    processLogo();
+    S.designN = d.n;
+    syncForm(); update(); S.dirty = false; updateHeader();
+  }
+
+  $('saveVersion').onclick = async () => {
+    if (!S.clientId) return;
+    if (S.photo && S.model === null) {
+      alert('Esta foto de bolsa no está guardada. Agrégala con “+ Agregar bolsa” y luego guarda la versión.');
+      return;
+    }
+    const nota = prompt('¿Qué cambió en esta versión? (opcional)', '');
+    if (nota === null) return;
+    try {
+      if (S.logo && !S.logoId) {
+        S.logoId = newId();
+        await dbDo('logos', 'readwrite', st => st.put({ id: S.logoId, src: S.logo.src, nombre: S.logoName }));
+      }
+      const n = (await designsOf(S.clientId)).reduce((m, d) => Math.max(m, d.n), 0) + 1;
+      await dbDo('disenos', 'readwrite', st => st.put({
+        id: newId(), clienteId: S.clientId, n, nota: nota.trim(), fecha: Date.now(), thumb: thumbnail(),
+        estado: snapshot(), logoId: S.logo ? S.logoId : null, logoName: S.logoName || '',
+      }));
+      const c = (await getAll('clientes')).find(x => x.id === S.clientId);
+      if (c) { c.actualizado = Date.now(); await dbDo('clientes', 'readwrite', st => st.put(c)); }
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
+      S.dirty = false; S.designN = n; updateHeader();
+      toast(`Guardado como versión ${n} de ${S.clientName}`);
+    } catch (err) { alert('No se pudo guardar: ' + err.message); }
+  };
+
+  $('toClients').onclick = async () => {
+    if (S.dirty && (S.logo || S.contact.on) && !confirm('Hay cambios sin guardar. ¿Salir igual?')) return;
+    if (S.clientId) openClient(S.clientId); else { showView('clients'); renderClients(); }
+  };
+  $('backToClients').onclick = () => { S.clientId = null; showView('clients'); renderClients(); };
+  $('clientSearch').oninput = () => renderClients();
+  $('newClient').onclick = async () => {
+    const nombre = (prompt('Nombre del cliente (ej. Pepemarket):', '') || '').trim();
+    if (!nombre) return;
+    const existing = (await getAll('clientes')).find(c => c.nombre.toLowerCase() === nombre.toLowerCase());
+    if (existing) { openClient(existing.id); return; }
+    const c = { id: newId(), nombre, creado: Date.now(), actualizado: Date.now() };
+    try { await dbDo('clientes', 'readwrite', st => st.put(c)); } catch (err) { alert('No se pudo crear el cliente: ' + err.message); return; }
+    $('clientSearch').value = '';
+    openClient(c.id);
+  };
+  $('newDesign').onclick = () => newDesign();
+  $('quickTry').onclick = () => { S.clientId = null; S.clientName = ''; newDesign(); };
+  $('renameClient').onclick = async () => {
+    const c = (await getAll('clientes')).find(x => x.id === S.clientId); if (!c) return;
+    const nombre = (prompt('Nuevo nombre del cliente:', c.nombre) || '').trim(); if (!nombre) return;
+    c.nombre = nombre; await dbDo('clientes', 'readwrite', st => st.put(c));
+    S.clientName = nombre; renderVersions();
+  };
+  $('deleteClient').onclick = async () => {
+    const ds = await designsOf(S.clientId);
+    if (!confirm(`¿Eliminar a ${S.clientName}${ds.length ? ` y sus ${ds.length} versiones` : ''}? No se puede deshacer.`)) return;
+    await dbDo('disenos', 'readwrite', st => ds.forEach(d => st.delete(d.id)));
+    await dbDo('clientes', 'readwrite', st => st.delete(S.clientId));
+    S.clientId = null; showView('clients'); renderClients();
+  };
+
+  // ---------- backup: move everything to another phone / share with your partner ----------
+  $('backupBtn').onclick = async () => {
+    const data = {
+      app: 'conceptualizador-bolsas', formato: 1, fecha: new Date().toISOString(),
+      clientes: await getAll('clientes'), disenos: await getAll('disenos'), logos: await getAll('logos'), modelos: await getAll('modelos'),
+      esquinas: loadCorners(), medidas: loadAllDims(), ocultos: [...hiddenModels()],
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+    const name = `respaldo-bolsas-${new Date().toISOString().slice(0, 10)}.json`;
+    const file = new File([blob], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Respaldo Conceptualizador' }); return; } catch (e) { if (e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  $('restoreFile').onchange = async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch { alert('Ese archivo no es un respaldo válido.'); return; }
+    if (data.app !== 'conceptualizador-bolsas') { alert('Ese archivo no es un respaldo de esta app.'); return; }
+    if (!confirm(`Restaurar ${(data.clientes || []).length} clientes, ${(data.disenos || []).length} versiones y ${(data.modelos || []).length} bolsas agregadas? Lo que ya tienes se mantiene.`)) return;
+    try {
+      for (const store of ['clientes', 'disenos', 'logos', 'modelos']) {
+        const list = data[store] || [];
+        if (list.length) await dbDo(store, 'readwrite', st => list.forEach(r => st.put(r)));
+      }
+      saveCorners({ ...data.esquinas, ...loadCorners() });
+      try { localStorage.setItem(DIMS_KEY, JSON.stringify({ ...data.medidas, ...loadAllDims() })); } catch { }
+      saveHidden(new Set([...hiddenModels(), ...(data.ocultos || [])]));
+      alert('Respaldo restaurado.');
+      location.reload();
+    } catch (err) { alert('No se pudo restaurar: ' + err.message); }
+  };
+
   // ---------- export / share ----------
   function fileName() {
-    const client = $('client').value.trim().replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]/g, '').replace(/\s+/g, '-');
+    const client = S.clientName.trim().replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]/g, '').replace(/\s+/g, '-');
     return `mockup-bolsa${client ? '-' + client : ''}.png`;
   }
   function cleanBlob(cb) {
@@ -1601,9 +1940,9 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     navigator.serviceWorker.register('sw.js').catch(() => { });
   }
 
-  resetPlacement();
-  if (MODELOS.length) selectModel(0); else update();
-  loadLocalModels();
+  resetPlacement(); update();
+  loadLocalModels().then(() => { const i = firstVisible(); if (i >= 0) selectModel(i); });
+  showView('clients'); renderClients();
 })();
 </script>
 </body>

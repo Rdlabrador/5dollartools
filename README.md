@@ -5,7 +5,7 @@ Herramientas fáciles y baratas. Cada herramienta vive en su propia carpeta y se
 
 | Herramienta | Carpeta | Para qué sirve |
 |---|---|---|
-| Conceptualizador de bolsas | [`conceptualizador-bolsas/`](conceptualizador-bolsas/) | Muestra al cliente su logo impreso en la bolsa (mockup) y exporta el archivo de impresión en SVG a tamaño real. |
+| MyBags (conceptualizador de bolsas) | [`conceptualizador-bolsas/`](conceptualizador-bolsas/) | Muestra al cliente su logo impreso en la bolsa (mockup) y exporta el archivo de impresión en SVG a tamaño real. |
 
 ## Agregar una herramienta nueva
 
