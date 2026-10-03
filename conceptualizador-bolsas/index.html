@@ -34,6 +34,8 @@
   .tpl canvas { width: 100%; aspect-ratio: 1; }
   .tpl.on { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
   .tpl img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; }
+  .tpl.add { border-style: dashed; justify-content: center; color: var(--accent); font-weight: 600; }
+  .tpl.add b { width: 100%; aspect-ratio: 1; display: grid; place-items: center; font-size: 30px; font-weight: 400; }
   .subh { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
   .swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
@@ -109,8 +111,10 @@
       <div id="misModelosBox" class="hidden">
         <div class="subh">Mis modelos</div>
         <div class="templates" id="misModelos"></div>
+        <input type="file" id="addModelFile" accept="image/*" class="hidden">
         <div class="btns" id="cornerBtns" style="margin-top:8px">
           <button class="btn" id="editCorners">Ajustar esquinas del frente</button>
+          <button class="btn hidden" id="delModel">Eliminar esta bolsa</button>
           <button class="link hidden" id="saveCorners">Descargar ajustes (areas.json)</button>
         </div>
         <div class="subh" style="margin-top:12px">Plantillas dibujadas</div>
@@ -155,6 +159,8 @@
       <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo del logo</label>
       <label class="check" id="invertRow"><input type="checkbox" id="invert"> Invertir (imprimir el fondo en vez del logo)</label>
       <div class="row"><span>Tamaño</span><input type="range" id="size" min="20" max="1000"><output id="sizeO"></output></div>
+      <div class="row"><span>Posición X</span><input type="range" id="posX" min="0" max="1000" step="1"><output id="posXO"></output></div>
+      <div class="row"><span>Posición Y</span><input type="range" id="posY" min="0" max="1000" step="1"><output id="posYO"></output></div>
       <div class="row"><span>Rotación</span><input type="range" id="rot" min="-180" max="180" value="0"><output id="rotO"></output></div>
       <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
       <div class="row"><span>Acabado</span>
@@ -183,6 +189,7 @@
         <div class="row"><span>Dirección</span><input type="text" id="c_dir" placeholder="Calle 123, Ciudad"></div>
         <div class="row"><span>Correo</span><input type="text" id="c_mail" placeholder="hola@tumarca.cl"></div>
         <div class="row"><span>Facebook</span><input type="text" id="c_fb" placeholder="TuMarca"></div>
+        <div class="row"><span>Posición</span><input type="range" id="cPos" min="0" max="1000" step="1"><output id="cPosO"></output></div>
         <div class="row"><span>Tamaño</span><input type="range" id="cSize" min="40" max="250" value="100"><output id="cSizeO"></output></div>
         <label class="check"><input type="checkbox" id="cLines" checked> Líneas separadoras</label>
       </div>
@@ -525,8 +532,8 @@
     c.drawImage(img, sr[0], sr[1], sr[2], sr[3], sr[0], sr[1], sr[2], sr[3]);
     c.restore();
   }
-  function warp(img, c, H, box) {
-    const N = 16, cw = img.width / N, ch = img.height / N;
+  function warp(img, c, H, box, N = 16) {
+    const cw = img.width / N, ch = img.height / N;
     for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
       const x0 = i * cw, y0 = j * ch, x1 = x0 + cw, y1 = y0 + ch;
       if (box && (x1 < box.x || x0 > box.x + box.w || y1 < box.y || y0 > box.y + box.h)) continue;
@@ -615,7 +622,7 @@
   const d2rgb = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
   const lumRGB = c => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
 
-  function extractPalette(p, f) {
+  function extractPalette(p, f, bg) {
     const pts = [], step = Math.max(1, Math.floor(f.length / 40000));
     for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) { const i = k * 4; pts.push([p[i], p[i + 1], p[i + 2]]); }
     if (!pts.length) return [];
@@ -655,8 +662,11 @@
       const t = clamp((ab[0] * ac[0] + ab[1] * ac[1] + ab[2] * ac[2]) / (d2rgb(a, b) || 1), 0, 1);
       return Math.sqrt(d2rgb(c, a.map((v, i) => v + ab[i] * t)));
     };
-    pal = pal.filter(c => !(c.share < 0.12 && pal.some(a => a !== c && a.share > c.share &&
-      pal.some(b => b !== c && b !== a && b.share > c.share && segDist(c.rgb, a.rgb, b.rgb) < 28))));
+    // a "colour" lying between two real ones (or between a real one and the removed background)
+    // is just the soft edge where they meet
+    const anchors = bg ? [...pal, { rgb: bg, share: 1 }] : pal;
+    pal = pal.filter(c => !(c.share < 0.12 && anchors.some(a => a !== c && a.share > c.share &&
+      anchors.some(b => b !== c && b !== a && b.share > c.share && segDist(c.rgb, a.rgb, b.rgb) < 28))));
     return pal.map(c => ({ rgb: c.rgb, share: c.share, hex: toHex(c.rgb) }));
   }
 
@@ -721,7 +731,7 @@
     if (S.mode !== 'color') {
       if (S.paletteDirty || !S.palette) {
         // keep the user's choices for colours that are still there after re-cleaning
-        const old = S.palette || [], pal = extractPalette(p, f);
+        const old = S.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb);
         defaultRoles(pal);
         pal.forEach(c => {
           const prev = old.find(o => d2rgb(o.rgb, c.rgb) < 40 * 40);
@@ -878,6 +888,24 @@
 
   // ---------- compositing ----------
   const P = newCanvas(1, 1), L = newCanvas(1, 1), M = newCanvas(1, 1), T = newCanvas(1, 1);
+  // resizing a canvas re-allocates it (slow on phones): only resize when the size really changes
+  function fit(c, w, h) {
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    else { const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalCompositeOperation = 'source-over'; x.clearRect(0, 0, w, h); }
+    return c.getContext('2d');
+  }
+  // while a finger/slider is moving we draw a lighter preview (coarser perspective mesh, no paper
+  // texture) once per screen frame; full quality comes back right after the movement stops
+  let live = false, frame = 0, liveTimer = null;
+  function scheduleRender() {
+    if (frame) return;
+    frame = requestAnimationFrame(() => { frame = 0; render(); syncTransform(); showSizes(); });
+  }
+  function liveUpdate() {
+    live = true; scheduleRender();
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(() => { if (!drag) { live = false; render(); } }, 160);
+  }
 
   function logoHeight() { return S.proc ? S.w * S.proc.height / S.proc.width : 0; }
   function logoCorners() {
@@ -894,8 +922,7 @@
   // everything that gets printed, already placed on the bag (canvas size), or null
   function composePrint() {
     const D = design();
-    P.width = D.w; P.height = D.h;
-    const p = P.getContext('2d');
+    const p = fit(P, D.w, D.h);
     const boxes = [];
     if (S.proc) {
       p.save(); p.translate(S.x, S.y); p.rotate(S.rot * Math.PI / 180);
@@ -908,15 +935,14 @@
 
     let out = P;
     if (S.H) {
-      L.width = cv.width; L.height = cv.height;
+      const l = fit(L, cv.width, cv.height);
       const all = bounds(boxes.flatMap(b => [[b.x - 20, b.y - 20], [b.x + b.w + 20, b.y + b.h + 20]]));
-      warp(P, L.getContext('2d'), S.H, all);
+      warp(P, l, S.H, all, live ? 7 : 16);
       out = L;
     }
-    if (S.photo && S.texture && S.detail) {
-      [M, T].forEach(c => { c.width = cv.width; c.height = cv.height; });
-      M.getContext('2d').drawImage(out, 0, 0);
-      const t = T.getContext('2d');
+    if (S.photo && S.texture && S.detail && !live) {
+      fit(M, cv.width, cv.height).drawImage(out, 0, 0);
+      const t = fit(T, cv.width, cv.height);
       t.drawImage(out, 0, 0);
       t.globalCompositeOperation = 'multiply'; t.drawImage(S.detail.shade, 0, 0);
       t.globalCompositeOperation = 'screen'; t.drawImage(S.detail.light, 0, 0);
@@ -930,7 +956,7 @@
     if (!print) return;
     c.save();
     // real screen-print ink lets a little of the paper through
-    c.globalAlpha = S.opacity * (S.photo && S.texture ? 0.95 : 1);
+    c.globalAlpha = S.opacity * (S.photo && S.texture && !live ? 0.95 : 1);
     c.globalCompositeOperation = S.blend;
     c.drawImage(print, 0, 0);
     c.restore();
@@ -1045,15 +1071,16 @@
   function syncControls() {
     const ink = S.mode !== 'color';
     $('logoCtl').classList.toggle('hidden', !S.proc);
-    $('size').max = design().w; $('size').value = Math.round(S.w); $('sizeO').textContent = Math.round(S.w);
-    $('rot').value = S.rot; $('rotO').textContent = S.rot + '°';
+    syncTransform();
     $('op').value = Math.round(S.opacity * 100); $('opO').textContent = Math.round(S.opacity * 100) + '%';
     $('mode').value = S.mode;
     $('thr').value = S.thr; $('thrO').textContent = S.thr;
     $('inkRow').classList.toggle('hidden', !ink && !S.contact.on);
     $('ink2Row').classList.toggle('hidden', S.mode !== 'ink2');
     $('palRow').classList.toggle('hidden', !ink || !S.palette || S.palette.length < 2);
-    renderPalette();
+    const palSig = S.mode + '|' + (S.palette || []).map(c => c.hex + c.role1 + c.role2).join(',');
+    if (palSig !== lastPalSig) { lastPalSig = palSig; renderPalette(); }
+    syncTransform();
     $('rmBgRow').classList.toggle('hidden', ink);
     $('thrRow').classList.toggle('hidden', !ink && !S.removeBg);
     $('invertRow').classList.toggle('hidden', S.mode !== 'ink');
@@ -1071,6 +1098,7 @@
     $('customColor').value = S.bagColor;
     $('photoLabel').textContent = S.photo && S.model === null ? '✓ Usando tu foto · clic para cambiarla' : '…o sube otra foto de bolsa';
     $('cornerBtns').classList.toggle('hidden', S.model === null);
+    $('delModel').classList.toggle('hidden', !(S.model !== null && MODELOS[S.model] && MODELOS[S.model].local));
     syncDims();
     $('editCorners').textContent = S.editCorners ? '✓ Listo' : 'Ajustar esquinas del frente';
     $('editCorners').classList.toggle('on', S.editCorners);
@@ -1080,7 +1108,17 @@
       : '<span class="hint-desk">Arrastra el logo o la franja para moverlos · Ctrl + rueda del mouse para cambiar tamaño · Flechas del teclado para ajuste fino</span>'
       + '<span class="hint-touch">Un dedo mueve · dos dedos agrandan y giran</span>';
   }
+  let lastPalSig = '';
   const update = () => { syncControls(); render(); showSizes(); };
+
+  function syncTransform() {
+    const D = design();
+    $('size').max = Math.round(D.w * 1.5); $('size').value = Math.round(S.w); $('sizeO').textContent = Math.round(S.w);
+    $('rot').value = S.rot; $('rotO').textContent = S.rot + '°';
+    $('posX').max = D.w; $('posX').value = Math.round(S.x); $('posXO').textContent = Math.round(S.x / D.w * 100) + '%';
+    $('posY').max = D.h; $('posY').value = Math.round(S.y); $('posYO').textContent = Math.round(S.y / D.h * 100) + '%';
+    $('cPos').max = D.h; $('cPos').value = Math.round(S.contact.y); $('cPosO').textContent = Math.round(S.contact.y / D.h * 100) + '%';
+  }
 
   // drawn templates with live thumbnails
   Object.entries(TEMPLATES).forEach(([k, t]) => {
@@ -1091,24 +1129,84 @@
     $('templates').append(b);
   });
 
-  // your own bag photos, loaded from modelos.js (generated by actualizar-modelos.bat)
-  if (MODELOS.length) {
+  // your bags: the ones published in modelos.js (actualizar-modelos.bat) + the ones added on this phone
+  function renderModelTiles() {
+    const box = $('misModelos'); box.innerHTML = '';
     $('misModelosBox').classList.remove('hidden');
     MODELOS.forEach((m, i) => {
       const b = document.createElement('button'); b.className = 'tpl modelo'; b.dataset.i = i; b.title = m.nombre;
       const img = new Image(); img.src = m.src; img.alt = m.nombre;
       b.append(img, m.nombre);
       b.onclick = () => selectModel(i);
-      $('misModelos').append(b);
+      box.append(b);
+    });
+    const add = document.createElement('button'); add.className = 'tpl add';
+    add.innerHTML = '<b>+</b>Agregar bolsa';
+    add.onclick = () => $('addModelFile').click();
+    box.append(add);
+    syncControls();
+  }
+
+  // ---------- bags saved on this device (IndexedDB: survives closing the app) ----------
+  const db = new Promise(res => {
+    try {
+      const r = indexedDB.open('conceptualizador', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('modelos', { keyPath: 'id' });
+      r.onsuccess = () => res(r.result); r.onerror = () => res(null);
+    } catch { res(null); }
+  });
+  async function dbDo(mode, fn) {
+    const d = await db; if (!d) throw new Error('Este navegador no permite guardar bolsas');
+    return new Promise((res, rej) => {
+      const tx = d.transaction('modelos', mode), r = fn(tx.objectStore('modelos'));
+      tx.oncomplete = () => res(r && r.result); tx.onerror = () => rej(tx.error);
     });
   }
-  function selectModel(i) {
+  async function loadLocalModels() {
+    try {
+      const list = await dbDo('readonly', st => st.getAll());
+      (list || []).sort((a, b) => a.creado - b.creado).forEach(m =>
+        MODELOS.push({ nombre: m.nombre, archivo: 'local:' + m.id, id: m.id, src: m.src, area: null, local: true }));
+    } catch { }
+    renderModelTiles();
+  }
+  $('addModelFile').onchange = async e => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    const img = await loadImage(file);
+    // shrink to 1600 px (phone photos are huge); the browser already straightens rotated phone photos
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = newCanvas(Math.round(img.naturalWidth * k), Math.round(img.naturalHeight * k));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    const local = MODELOS.filter(m => m.local).length;
+    const nombre = (prompt('Nombre de esta bolsa (ej. Kraft chica):', 'Mi bolsa ' + (local + 1)) || '').trim();
+    if (!nombre) return;
+    const rec = { id: Date.now().toString(36), nombre, src: c.toDataURL('image/jpeg', 0.88), creado: Date.now() };
+    try { await dbDo('readwrite', st => st.put(rec)); }
+    catch (err) { alert('No se pudo guardar la bolsa: ' + err.message); return; }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
+    MODELOS.push({ nombre, archivo: 'local:' + rec.id, id: rec.id, src: rec.src, area: null, local: true });
+    renderModelTiles();
+    // straight into corner adjustment: that's what makes the logo follow the bag's perspective
+    selectModel(MODELOS.length - 1, true);
+  };
+  $('delModel').onclick = async () => {
+    const m = MODELOS[S.model];
+    if (!m || !m.local || !confirm(`¿Eliminar "${m.nombre}" de este teléfono?`)) return;
+    try { await dbDo('readwrite', st => st.delete(m.id)); } catch { }
+    MODELOS.splice(S.model, 1);
+    const all = loadCorners(); delete all[m.archivo]; saveCorners(all);
+    saveDims(m.archivo, null);
+    S.model = null; renderModelTiles();
+    if (MODELOS.length) selectModel(0); else { setPhoto(null); resetPlacement(); autoInk(); update(); }
+  };
+  function selectModel(i, editCorners = false) {
     const m = MODELOS[i], img = new Image();
     img.onload = () => {
       S.model = i; S.editCorners = false;
       setPhoto(img); S.model = i; S.dims = storedDims(m.archivo, m); setQuad(modelQuad(m)); refreshDetail();
       resetPlacement();
-      autoInk(); update();
+      autoInk(); S.editCorners = editCorners; update();
     };
     img.src = m.src;
   }
@@ -1186,8 +1284,12 @@
     resetPlacement(); autoInk(); update();
   };
 
-  $('size').oninput = e => { S.w = +e.target.value; showGuide('logo'); update(); };
-  $('rot').oninput = e => { S.rot = +e.target.value; showGuide('logo'); update(); };
+  // sliders that move/resize: smooth live preview, full quality when you let go
+  $('size').oninput = e => { S.w = +e.target.value; showGuide('logo'); liveUpdate(); };
+  $('rot').oninput = e => { S.rot = +e.target.value; showGuide('logo'); liveUpdate(); };
+  $('posX').oninput = e => { S.x = +e.target.value; showGuide('logo'); liveUpdate(); };
+  $('posY').oninput = e => { S.y = +e.target.value; showGuide('logo'); liveUpdate(); };
+  $('cPos').oninput = e => { S.contact.y = +e.target.value; showGuide('contact'); liveUpdate(); };
   $('op').oninput = e => { S.opacity = e.target.value / 100; update(); };
   $('blend').onchange = e => { S.blend = e.target.value; update(); };
   $('mode').onchange = e => { S.mode = e.target.value; processLogo(); update(); };
@@ -1202,7 +1304,7 @@
 
   $('cOn').onchange = e => { S.contact.on = e.target.checked; if (S.contact.on) showGuide('contact'); update(); };
   CONTACT_KEYS.forEach(k => { $('c_' + k).oninput = e => { S.contact[k] = e.target.value; update(); }; });
-  $('cSize').oninput = e => { S.contact.scale = e.target.value / 100; showGuide('contact'); update(); };
+  $('cSize').oninput = e => { S.contact.scale = e.target.value / 100; showGuide('contact'); liveUpdate(); };
   $('cLines').onchange = e => { S.contact.lines = e.target.checked; update(); };
 
   $('editCorners').onclick = () => {
@@ -1284,7 +1386,7 @@
         S.w = clamp(drag.w0 * k, 20, design().w * 1.5);
         S.rot = Math.round(((drag.rot0 + (ang - drag.a0) * 180 / Math.PI + 540) % 360) - 180);
       } else S.contact.scale = clamp(drag.s0 * k, 0.4, 2.5);
-      syncControls(); render(); showSizes(); return;
+      liveUpdate(); return;
     }
     if (drag.corner !== undefined) {
       const q = S.quadFrac.map(c => c.slice());
@@ -1293,12 +1395,12 @@
       const D0 = design(), rel = [S.x / D0.w, S.y / D0.h, S.w / D0.w, S.contact.y / D0.h];
       setQuad(q);
       const D1 = design(); S.x = rel[0] * D1.w; S.y = rel[1] * D1.h; S.w = rel[2] * D1.w; S.contact.y = rel[3] * D1.h;
-      render(); return;
+      liveUpdate(); return;
     }
     const [dx, dy] = toDesignPt(p.x, p.y);
     if (drag.target === 'logo') { S.x = dx - drag.ox; S.y = dy - drag.oy; }
     else S.contact.y = dy - drag.oy;
-    render();
+    liveUpdate();
   });
   const endDrag = e => {
     touches.delete(e.pointerId);
@@ -1306,7 +1408,7 @@
     if (drag && drag.pinch && touches.size) { drag = null; return; }
     if (!drag) return;
     const wasCorner = drag.corner !== undefined;
-    drag = null; cv.style.cursor = 'grab';
+    drag = null; cv.style.cursor = 'grab'; live = false;
     if (wasCorner) { syncControls(); render(); } else { showGuide(); render(); }
   };
   cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
@@ -1501,6 +1603,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
 
   resetPlacement();
   if (MODELOS.length) selectModel(0); else update();
+  loadLocalModels();
 })();
 </script>
 </body>
