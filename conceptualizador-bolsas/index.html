@@ -11,17 +11,18 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="MyBags">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <style>
   :root {
     --bg: #f3f1ec; --panel: #ffffff; --text: #1f1d1a; --muted: #6b665d;
-    --line: #e2ddd3; --accent: #b4441a; --accent-soft: #fbe9df;
+    --line: #e2ddd3; --accent: #111111; --accent-soft: #fff3bf; --brand: #f5c400; --brand-dark: #d9ad00;
   }
   * { box-sizing: border-box; }
   body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text);
     height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-  header { padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  header { padding: 14px 24px; background: #111; color: #fff; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; color: var(--brand); letter-spacing: -0.01em; }
+  header .btn:not(.primary) { background: #2a2a2a; color: #fff; border-color: #3a3a3a; }
   header label { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
   header input { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; width: 200px; }
   main { flex: 1; min-height: 0; width: 100%; display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; }
@@ -56,7 +57,7 @@
   .check input { accent-color: var(--accent); }
   .btn { font: inherit; font-size: 13px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
   .btn:hover { border-color: var(--muted); }
-  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  .btn.primary { background: var(--brand); color: #111; border-color: var(--brand-dark); font-weight: 700; }
   .btn.primary:hover { filter: brightness(1.08); }
   .btn.on { background: var(--accent-soft); border-color: var(--accent); }
   .link { background: none; border: none; padding: 0; font: inherit; font-size: 12px; color: var(--accent); cursor: pointer; text-decoration: underline; }
@@ -145,6 +146,7 @@
       <button class="link" id="backupBtn">Respaldar</button> ·
       <label class="link">Restaurar<input type="file" id="restoreFile" accept=".json,application/json" class="hidden"></label>
       <div class="note">Los clientes y diseños se guardan en este teléfono. Usa “Respaldar” para pasarlos a otro teléfono o a tu socio.</div>
+      <div class="note" id="storageInfo"></div>
     </div>
   </div>
 </section>
@@ -1027,23 +1029,25 @@
   }
   function drawGuides(c) {
     c.save();
-    c.strokeStyle = 'rgba(180,68,26,.9)'; c.lineWidth = 2; c.setLineDash([8, 6]);
-    if (guide === 'logo' && S.proc) strokePoly(c, logoCorners().map(p => toCanvasPt(...p)));
-    if (guide === 'contact' && S.cBox) {
-      const b = S.cBox;
-      strokePoly(c, [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]].map(p => toCanvasPt(...p)));
+    let pts = null;
+    if (guide === 'logo' && S.proc) pts = logoCorners();
+    if (guide === 'contact' && S.cBox) { const b = S.cBox; pts = [[b.x, b.y], [b.x + b.w, b.y], [b.x + b.w, b.y + b.h], [b.x, b.y + b.h]]; }
+    if (pts) {
+      pts = pts.map(p => toCanvasPt(...p));
+      c.strokeStyle = '#f5c400'; c.lineWidth = 4; strokePoly(c, pts);
+      c.strokeStyle = '#111'; c.lineWidth = 2; c.setLineDash([8, 6]); strokePoly(c, pts);
     }
     c.restore();
   }
   function drawCornerEditor(c) {
     if (!S.editCorners || !S.quad) return;
     c.save();
-    c.fillStyle = 'rgba(180,68,26,.10)'; c.strokeStyle = '#b4441a'; c.lineWidth = 3;
+    c.fillStyle = 'rgba(245,196,0,.14)'; c.strokeStyle = '#111'; c.lineWidth = 3;
     c.beginPath(); S.quad.forEach(([x, y], i) => i ? c.lineTo(x, y) : c.moveTo(x, y)); c.closePath(); c.fill(); c.stroke();
     S.quad.forEach(([x, y]) => {
       c.beginPath(); c.arc(x, y, 16, 0, Math.PI * 2);
       c.fillStyle = '#fff'; c.fill(); c.stroke();
-      c.beginPath(); c.arc(x, y, 4, 0, Math.PI * 2); c.fillStyle = '#b4441a'; c.fill();
+      c.beginPath(); c.arc(x, y, 6, 0, Math.PI * 2); c.fillStyle = '#f5c400'; c.fill(); c.lineWidth = 1.5; c.stroke(); c.lineWidth = 3;
     });
     c.restore();
   }
@@ -1691,7 +1695,24 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       : S.clientId ? (S.designN ? `Versión ${S.designN}` : 'Nuevo diseño') : 'Prueba rápida';
   }
 
+  // logos are stored once and shared by versions: drop the ones no version uses anymore
+  async function pruneLogos() {
+    const used = new Set((await getAll('disenos')).map(d => d.logoId).filter(Boolean));
+    const orphans = (await getAll('logos')).filter(l => !used.has(l.id));
+    if (orphans.length) await dbDo('logos', 'readwrite', st => orphans.forEach(l => st.delete(l.id)));
+  }
+  async function showStorage() {
+    if (!navigator.storage || !navigator.storage.estimate) return;
+    try {
+      const { usage } = await navigator.storage.estimate();
+      const mb = usage / 1048576;
+      $('storageInfo').textContent = 'Espacio usado por la app en este teléfono: '
+        + (mb < 0.1 ? 'menos de 0,1 MB' : mb.toLocaleString('es-CL', { maximumFractionDigits: 1 }) + ' MB');
+    } catch { }
+  }
+
   async function renderClients() {
+    showStorage();
     const q = $('clientSearch').value.trim().toLowerCase();
     const designs = await getAll('disenos');
     const clients = (await getAll('clientes'))
@@ -1736,7 +1757,9 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       del.onclick = async () => {
         if (!confirm(`¿Eliminar la versión ${d.n} de ${S.clientName}?`)) return;
         await dbDo('disenos', 'readwrite', st => st.delete(d.id));
+        await pruneLogos();
         renderVersions();
+        toast(`Versión ${d.n} eliminada`);
       };
       box.append(el);
     });
@@ -1875,6 +1898,8 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     if (!confirm(`¿Eliminar a ${S.clientName}${ds.length ? ` y sus ${ds.length} versiones` : ''}? No se puede deshacer.`)) return;
     await dbDo('disenos', 'readwrite', st => ds.forEach(d => st.delete(d.id)));
     await dbDo('clientes', 'readwrite', st => st.delete(S.clientId));
+    await pruneLogos();
+    toast(`${S.clientName} eliminado`);
     S.clientId = null; showView('clients'); renderClients();
   };
 
