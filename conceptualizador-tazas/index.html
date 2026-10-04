@@ -142,6 +142,7 @@
       <div class="row"><span>Opacidad</span><input type="range" id="op" min="10" max="100" value="100"><output id="opO"></output></div>
       <div class="subh">Alinear <span id="alignHow"></span></div>
       <div class="btns aligns" id="aligns"></div>
+      <label class="check"><input type="checkbox" id="curva"> Compensar la curvatura (de frente se ve sin angostarse)</label>
       <label class="check" id="repRow"><input type="checkbox" id="rep"> Repetir en el otro lado de la taza</label>
       <div class="btns">
         <button class="btn" id="center">Centrar</button>
@@ -159,6 +160,13 @@
       <div class="note">Medidas de la taza:</div>
       <div class="row"><span>Alto taza</span><input type="text" inputmode="decimal" id="mugH"><span style="width:auto">cm</span></div>
       <div class="row"><span>Diámetro</span><input type="text" inputmode="decimal" id="mugD"><span style="width:auto">cm</span></div>
+      <label class="check"><input type="checkbox" id="porMargen"> Ajustar por márgenes sin imprimir</label>
+      <div id="marCtl" class="hidden">
+        <div class="row"><span>Asa</span><input type="text" inputmode="decimal" id="marAsa"><span style="width:auto">cm</span></div>
+        <div class="row"><span>Arriba</span><input type="text" inputmode="decimal" id="marTop"><span style="width:auto">cm</span></div>
+        <div class="row"><span>Abajo</span><input type="text" inputmode="decimal" id="marBot"><span style="width:auto">cm</span></div>
+        <div class="note">Asa: ancho total de la franja que queda sin imprimir. Arriba y abajo: desde el borde de la taza hasta donde empieza la impresión. El ancho y el alto de la impresión se calculan solos.</div>
+      </div>
       <div class="sizeinfo" id="sizeInfo"></div>
       <label class="check"><input type="checkbox" id="mirror" checked> En espejo (para sublimar)</label>
       <button class="btn primary" id="exportSvg" style="width:100%">Descargar archivo de impresión (SVG)</button>
@@ -237,7 +245,8 @@
   // where the strip sits on the mug wall (wall unrolled: C wide, Hw tall, seam at the handle)
   function geo() {
     const m = S.model, d = D(), C = Math.PI * m.diam * U, Hw = (m.alto - WALL_B - WALL_T) * U;
-    return { C, Hw, ox: (C - d.w) / 2, oy: (Hw - d.h) / 2 };
+    // the strip is centred up and down unless the model says how far below the rim it starts (mTop)
+    return { C, Hw, ox: (C - d.w) / 2, oy: m.mTop != null ? (m.mTop - WALL_T) * U : (Hw - d.h) / 2 };
   }
   // the part of the strip the chosen layout designs on
   function zone(layout = S.layout) {
@@ -260,9 +269,45 @@
   // ---------- layers ----------
   // every layer ends up as a canvas (l.proc) drawn centred on (x, y), w wide, rotated
   const dimsOf = l => l.proc ? [l.w, l.w * l.proc.height / l.proc.width] : [0, 0];
+  // Curve compensation. Seen from the front a mug squeezes what wraps around it, because the sides
+  // turn away from the eye (and, being farther, look smaller still). A layer marked "curva" is
+  // stretched sideways by exactly that amount, so from the front it shows its real proportions.
+  // It only holds for the view that faces the layer's centre, from a normal distance (VIEW mm).
+  // A point at angle φ around the mug is seen at R·sin φ·(D − R) / (D − R·cos φ), measured at the
+  // front of the mug; arcOf() inverts that: flat offset u → distance along the wall.
+  const VIEW = 400, mugR = () => S.model.diam / 2 * U;
+  const arcOf = u => {
+    const R = mugR(), D = VIEW * U, a = D - R, q = Math.abs(u);
+    return Math.sign(u) * R * (Math.asin(Math.min(0.985, q * D / (R * Math.hypot(a, q)))) - Math.atan2(q, a));
+  };
+  const flatOf = s => { const R = mugR(), D = VIEW * U, f = clamp(s / R, -1.3, 1.3); return R * Math.sin(f) * (D - R) / (D - R * Math.cos(f)); };
   function corners(l) {
     const [w, h] = dimsOf(l), a = l.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
-    return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y]) => [l.x + x * co - y * si, l.y + x * si + y * co]);
+    return [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]
+      .map(([x, y]) => [x * co - y * si, x * si + y * co]).map(([x, y]) => [l.x + (l.curva ? arcOf(x) : x), l.y + y]);
+  }
+  // draws a compensated layer: turned as usual on a scratch canvas, then copied to a second one
+  // column by column (each pixel column takes the piece of image the curve assigns to it, so there
+  // are no seams), and that one is laid on the strip
+  const WT = newCanvas(2, 2), WT2 = newCanvas(2, 2);
+  function drawWarped(c, l, ox) {
+    const [lw, lh] = dimsOf(l), a = l.rot * Math.PI / 180, co = Math.abs(Math.cos(a)), si = Math.abs(Math.sin(a));
+    const bw = lw * co + lh * si, bh = lw * si + lh * co, fw = 2 * arcOf(bw / 2);
+    const r = Math.min(l.proc.width / lw, 2400 / Math.max(fw, bh));
+    const tw = Math.max(2, Math.ceil(bw * r)), th = Math.max(2, Math.ceil(bh * r)), W2 = Math.max(2, Math.ceil(fw * r));
+    if (WT.width !== tw || WT.height !== th) { WT.width = tw; WT.height = th; }
+    if (WT2.width !== W2 || WT2.height !== th) { WT2.width = W2; WT2.height = th; }
+    const t = WT.getContext('2d'), t2 = WT2.getContext('2d');
+    t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, tw, th);
+    t.translate(tw / 2, th / 2); t.rotate(a); t.drawImage(l.proc, -lw * r / 2, -lh * r / 2, lw * r, lh * r);
+    t2.clearRect(0, 0, W2, th);
+    let u0 = flatOf(-fw / 2);
+    for (let x = 0; x < W2; x++) {
+      const u1 = flatOf((x + 1) / r - fw / 2);
+      t2.drawImage(WT, clamp((u0 + bw / 2) * r, 0, tw - 0.01), 0, Math.max(0.01, (u1 - u0) * r), th, x, 0, 1, th);
+      u0 = u1;
+    }
+    c.drawImage(WT2, l.x + ox - fw / 2, l.y - bh / 2, fw, bh);
   }
   function bounds(pts) {
     const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
@@ -271,7 +316,7 @@
   }
   function hit(l, p) {
     if (!l.visible || !l.proc) return false;
-    const [w, h] = dimsOf(l), a = -l.rot * Math.PI / 180, x = p.x - l.x, y = p.y - l.y;
+    const [w, h] = dimsOf(l), a = -l.rot * Math.PI / 180, x = l.curva ? flatOf(p.x - l.x) : p.x - l.x, y = p.y - l.y;
     const lx = x * Math.cos(a) - y * Math.sin(a), ly = x * Math.sin(a) + y * Math.cos(a);
     return Math.abs(lx) <= w / 2 + 15 && Math.abs(ly) <= h / 2 + 15;
   }
@@ -376,8 +421,10 @@
       if (!l.visible || !l.proc) return;
       const [lw, lh] = dimsOf(l);
       copies(l).forEach(o => {
-        c.save(); c.globalAlpha = l.opacity; c.translate(l.x + dx + o, l.y); c.rotate(l.rot * Math.PI / 180);
-        c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); c.restore();
+        c.save(); c.globalAlpha = l.opacity;
+        if (l.curva) drawWarped(c, l, dx + o);
+        else { c.translate(l.x + dx + o, l.y); c.rotate(l.rot * Math.PI / 180); c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); }
+        c.restore();
       });
     });
     const clipped = (x, cw, dx) => { c.save(); c.beginPath(); c.rect(x, 0, cw, h); c.clip(); pass(dx); c.restore(); };
@@ -458,7 +505,7 @@
     $('view3d').append(renderer.domElement);
     $('view3d').tabIndex = 0;
     scene = new T.Scene();
-    camera = new T.PerspectiveCamera(26, 1, 10, 5000);
+    camera = new T.PerspectiveCamera(20, 1, 10, 5000);   // narrow lens: the mug is seen from about 40 cm, like in the hand
     // a small studio for the ceramic to reflect: grey room with three soft light panels
     const env = new T.Scene();
     env.add(new T.Mesh(new T.BoxGeometry(12, 12, 12), new T.MeshBasicMaterial({ color: 0xb9b9b9, side: T.BackSide })));
@@ -878,6 +925,7 @@
   $('fit').onclick = onSel(l => { fitLayer(l); showGuide(); update(); });
   $('rot0').onclick = onSel(l => { l.rot = 0; update(); });
   $('rep').onchange = onSel((l, e) => { l.rep = e.target.checked; showGuide(); update(); });
+  $('curva').onchange = onSel((l, e) => { l.curva = e.target.checked; showGuide(); update(); });
   // cover the whole zone, like a background that goes from edge to edge
   $('fill').onclick = onSel(l => {
     if (!l.proc) return;
@@ -938,6 +986,7 @@
     }
     $('op').value = Math.round(l.opacity * 100); $('opO').textContent = Math.round(l.opacity * 100) + '%';
     $('alignHow').textContent = S.multi.length > 1 ? `· ${S.multi.length} capas entre sí` : '· dentro de la zona';
+    $('curva').checked = !!l.curva;
     $('rep').checked = !!l.rep; $('repRow').classList.toggle('hidden', S.layout === 'dos');
     $('fill').classList.toggle('hidden', t !== 'img');
     syncTransform();
@@ -965,30 +1014,65 @@
           : `<b>Calidad:</b> ${dpi} dpi${dpi < 250 ? ' (aceptable)' : ' (buena)'}`);
       }
     }
-    if (g.ox >= 0) lines.push(`<b>Sin imprimir:</b> ${cm(g.ox * 2 / U)} cm en la zona del asa${g.oy > 5 ? ` · ${cm(g.oy / U)} cm arriba y abajo` : ''}`);
+    if (l && l.proc && l.curva) {
+      const fw = bounds(corners(l)).w, flat = bounds(corners({ ...l, curva: false })).w;
+      lines.push(flat / 2 > mugR() * 0.86 ? '⚠ Esta capa es casi tan ancha como la taza: la curvatura ya no se puede compensar en los bordes.'
+        : `<b>Curvatura compensada:</b> se imprime ${cm(fw / U)} cm de ancho para verse de ${cm(flat / U)} cm de frente`);
+    }
+    const mg = margins(S.model);
+    if (g.ox >= 0) lines.push(`<b>Sin imprimir:</b> ${cm(mg.asa)} cm en la zona del asa · ${cm(mg.top)} cm arriba · ${cm(mg.bot)} cm abajo`);
+    if (mg.bot < 0) lines.push('⚠ La impresión se sale por abajo de la taza: revisa las medidas.');
     if (g.ox < 60) lines.push('⚠ La impresión es más ancha que el espacio que deja el asa: revisa el ancho o el diámetro.');
     if (g.oy < 0) lines.push('⚠ La impresión es más alta que la taza: revisa las medidas.');
     $('sizeInfo').innerHTML = lines.join('<br>');
     $('exportPrint').disabled = $('exportSvg').disabled = !S.layers.some(x => x.proc && x.visible);
   }
-  const parseCm = v => { const n = parseFloat(String(v).replace(',', '.')); return n > 1 && n < 100 ? n : null; };
+  const parseCm = (v, min = 1) => { const n = parseFloat(String(v).replace(',', '.')); return n >= min && n < 100 ? n : null; };
+  const fmtCm = mm => String(Math.round(mm * 10) / 100).replace('.', ',');
   const DIM_FIELDS = [['dimW', 'impW'], ['dimH', 'impH'], ['mugH', 'alto'], ['mugD', 'diam']];
+  // what the press leaves blank (mm): the band around the handle (whole width), below the rim and above the base
+  const margins = m => { const top = m.mTop != null ? m.mTop : (m.alto - m.impH) / 2; return { asa: Math.PI * m.diam - m.impW, top, bot: m.alto - m.impH - top }; };
+  const MAR_FIELDS = [['marAsa', 'asa'], ['marTop', 'top'], ['marBot', 'bot']];
   function syncDims() {
-    DIM_FIELDS.forEach(([id, k]) => { if (document.activeElement !== $(id)) $(id).value = String(S.model[k] / 10).replace('.', ','); });
+    const m = S.model, mg = margins(m), act = document.activeElement;
+    DIM_FIELDS.forEach(([id, k]) => { if (act !== $(id)) $(id).value = fmtCm(m[k]); });
+    MAR_FIELDS.forEach(([id, k]) => { if (act !== $(id)) $(id).value = fmtCm(mg[k]); });
+    $('porMargen').checked = !!m.porMargen; $('marCtl').classList.toggle('hidden', !m.porMargen);
+    $('dimW').disabled = $('dimH').disabled = !!m.porMargen;
+  }
+  // the printable strip is whatever the margins leave
+  function setFromMargins(mg) {
+    const m = S.model;
+    m.impW = Math.round((Math.PI * m.diam - mg.asa) * 10) / 10; m.impH = Math.round((m.alto - mg.top - mg.bot) * 10) / 10; m.mTop = mg.top;
+  }
+  // measurements are remembered per model on this phone
+  function saveModel() {
+    const m = S.model, vals = { alto: m.alto, diam: m.diam, impW: m.impW, impH: m.impH, mTop: m.mTop, porMargen: !!m.porMargen };
+    if (m.local) {
+      Object.assign(MODELOS.find(x => x.id === m.id) || {}, vals);
+      db.run('modelos', 'readwrite', st => st.put({ ...m })).catch(() => { });
+    } else { try { const all = loadMed(); all[m.id] = vals; localStorage.setItem(MED_KEY, JSON.stringify(all)); } catch { } }
+    buildMug(); renderModels(); update(); syncDims();
   }
   DIM_FIELDS.forEach(([id, k]) => {
     $(id).oninput = () => {
       const v = parseCm($(id).value); if (!v) return;
-      keepRelative(() => { S.model[k] = Math.round(v * 10); });
-      const m = S.model, vals = { alto: m.alto, diam: m.diam, impW: m.impW, impH: m.impH };
-      // measurements are remembered per model on this phone
-      if (m.local) {
-        Object.assign(MODELOS.find(x => x.id === m.id) || {}, vals);
-        db.run('modelos', 'readwrite', st => st.put({ ...m })).catch(() => { });
-      } else { try { const all = loadMed(); all[m.id] = vals; localStorage.setItem(MED_KEY, JSON.stringify(all)); } catch { } }
-      buildMug(); renderModels(); update();
+      const mg = margins(S.model);
+      // with "by margins" on, changing the mug keeps the margins and moves the print size
+      keepRelative(() => { S.model[k] = Math.round(v * 10); if (S.model.porMargen && (k === 'alto' || k === 'diam')) setFromMargins(mg); });
+      saveModel();
     };
   });
+  MAR_FIELDS.forEach(([id, k]) => {
+    $(id).oninput = () => {
+      const v = parseCm($(id).value, 0); if (v === null) return;
+      const m = S.model, mg = margins(m); mg[k] = v * 10;
+      if (Math.PI * m.diam - mg.asa < 20 || m.alto - mg.top - mg.bot < 20) return;   // would leave no room to print
+      keepRelative(() => setFromMargins(mg));
+      saveModel();
+    };
+  });
+  $('porMargen').onchange = e => { const m = S.model, mg = margins(m); m.porMargen = e.target.checked; if (m.porMargen) m.mTop = mg.top; saveModel(); };
 
   // ---------- pointer: drag a layer / turn the mug, on the 3D view and on the flat canvas ----------
   const ray = T ? new T.Raycaster() : null, ndc = T ? new T.Vector2() : null;
@@ -1151,23 +1235,43 @@
   }
   // the same strip as curves: an SVG in real millimetres, one group per layer
   const r3 = v => +v.toFixed(3);
+  // compensated layers cannot be placed with a plain transform: every point of their curves is
+  // moved. Returns the path already in strip units, centred on the layer
+  function warpPath(d, l, v) {
+    const k = l.w / v.w, a = l.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a);
+    return d.replace(/(-?[\d.]+) (-?[\d.]+)/g, (m, px, py) => {
+      const X = (px - v.w / 2) * k, Y = (py - v.h / 2) * k;
+      return r3(arcOf(X * co - Y * si)) + ' ' + r3(X * si + Y * co);
+    });
+  }
   function layerVector(l) {
+    const v = layerFlat(l);
+    if (!v || !l.curva) return v;
+    if (v.paths) return { abs: true, body: v.paths.map(p => `<path${p.id ? ` id="${p.id}"` : ''} fill="${p.fill}" fill-rule="evenodd" d="${warpPath(p.d, l, v)}"/>`).join('') };
+    // a photo: stretched as pixels, at its own resolution
+    const b = bounds(corners(l)), r = Math.min(l.proc.width / l.w, 4096 / Math.max(b.w, b.h));
+    const c = newCanvas(Math.ceil(b.w * r), Math.ceil(b.h * r)), x = c.getContext('2d');
+    x.scale(r, r); x.translate(-b.x, -b.y); drawWarped(x, l, 0);
+    return { abs: true, body: `<image x="${r3(b.x - l.x)}" y="${r3(b.y - l.y)}" width="${r3(b.w)}" height="${r3(b.h)}" href="${c.toDataURL('image/png')}"/>` };
+  }
+  function layerFlat(l) {
     if (l.type === 'img') {
       const w = l.proc.width, hh = l.proc.height;
       if (l.o.mode === 'color' && !l.o.vector) return { w, h: hh, body: `<image width="${w}" height="${hh}" href="${l.proc.toDataURL('image/png')}"/>` };
-      return { w, h: hh, body: Suite.capasVector(l.img, l.o).map(c => `<path id="${c.id}" fill="${c.fill}" fill-rule="evenodd" d="${c.d}"><title>${esc(c.label)}</title></path>`).join('') };
+      const paths = Suite.capasVector(l.img, l.o);
+      return { w, h: hh, paths, body: paths.map(c => `<path id="${c.id}" fill="${c.fill}" fill-rule="evenodd" d="${c.d}"><title>${esc(c.label)}</title></path>`).join('') };
     }
     // text and contact strips are drawn very large and traced: they travel as curves, no fonts needed
     const big = l.type === 'text' ? renderText(l, 480) : renderContact(l, 200);
     const d = big && Suite.vectorizar(big, { max: 4800 });
-    return d ? { w: big.width, h: big.height, body: `<path fill="${l.color}" fill-rule="evenodd" d="${d}"/>` } : null;
+    return d ? { w: big.width, h: big.height, paths: [{ fill: l.color, d }], body: `<path fill="${l.color}" fill-rule="evenodd" d="${d}"/>` } : null;
   }
   function buildSVG(mirror) {
     const { w, h } = D(), m = S.model;
     const items = S.layers.filter(l => l.visible && l.proc).map((l, i) => {
       const v = layerVector(l); if (!v) return null;
-      const k = l.w / v.w, id = `Capa_${i + 1}_` + (Suite.nombreArchivo(l.type === 'img' ? l.name.replace(/\.\w+$/, '') : l.type === 'text' ? l.text.split('\n')[0] : 'franja').slice(0, 24) || l.type);
-      const place = dx => `translate(${r3(l.x + dx)} ${r3(l.y)}) rotate(${r3(l.rot)}) scale(${+k.toFixed(6)}) translate(${r3(-v.w / 2)} ${r3(-v.h / 2)})`;
+      const k = v.abs ? 1 : l.w / v.w, id = `Capa_${i + 1}_` + (Suite.nombreArchivo(l.type === 'img' ? l.name.replace(/\.\w+$/, '') : l.type === 'text' ? l.text.split('\n')[0] : 'franja').slice(0, 24) || l.type);
+      const place = dx => v.abs ? `translate(${r3(l.x + dx)} ${r3(l.y)})` : `translate(${r3(l.x + dx)} ${r3(l.y)}) rotate(${r3(l.rot)}) scale(${+k.toFixed(6)}) translate(${r3(-v.w / 2)} ${r3(-v.h / 2)})`;
       return { l, v, id, place };
     }).filter(Boolean);
     const pass = (dx, clip, suf) => `<g clip-path="url(#${clip})">\n` + items.map(it =>
@@ -1205,7 +1309,7 @@ ${body}
 
   // ---------- clients & versions (shared shell) ----------
   const db = Suite.openDB('mymugs');
-  const LAYER_KEYS = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'rot', 'opacity', 'rep', 'fs', 'text', 'font', 'peso', 'color', 'def', 'defAmt', 'esp', 'lines', 'imgId'];
+  const LAYER_KEYS = ['id', 'type', 'name', 'visible', 'x', 'y', 'w', 'rot', 'opacity', 'rep', 'curva', 'fs', 'text', 'font', 'peso', 'color', 'def', 'defAmt', 'esp', 'lines', 'imgId'];
   const app = Suite.shell({
     nombre: 'MyMugs', id: 'conceptualizador-tazas', sufijo: 'tazas', db,
     hooks: {
@@ -1268,7 +1372,7 @@ ${body}
   renderFonts(); syncDims(); renderModels(); setStage('3d'); update(); S.dirty = false;
   db.all('modelos').then(list => { list.sort((a, b) => a.creado - b.creado).forEach(m => MODELOS.push({ ...m, local: true })); renderModels(); });
   // lets the automated tests drive the editor
-  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, buildSVG, align, snapDelta, selected, paints: () => paintCount, hist: () => [hi, hist.length] };
+  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, buildSVG, corners, margins, align, snapDelta, selected, paints: () => paintCount, hist: () => [hi, hist.length] };
   app.iniciar();
 })();
 </script>
