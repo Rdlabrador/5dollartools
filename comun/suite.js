@@ -87,11 +87,8 @@ window.Suite = (() => {
 
   // colour separation (what a print shop does by hand): the image's main colours are found
   // automatically; each one is then printed as ink, halftone ("trama") or left as bare paper.
-  function extractPalette(p, f, bg, maxColors = 6) {
-    const pts = [], step = Math.max(1, Math.floor(f.length / 40000));
-    for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) { const i = k * 4; pts.push([p[i], p[i + 1], p[i + 2]]); }
-    if (!pts.length) return [];
-    // farthest-point seeds, then k-means
+  // k-means with farthest-point seeds: the main colours of a list of [r, g, b] points
+  function kmeans(pts, maxColors) {
     let cs = [pts.reduce((m, c) => lumRGB(c) < lumRGB(m) ? c : m, pts[0])];
     while (cs.length < maxColors) {
       let best = null, bd = 0;
@@ -109,29 +106,50 @@ window.Suite = (() => {
       }
       cs = cs.map((q, j) => counts[j] ? sums[j].map(v => v / counts[j]) : q);
     }
+    return cs.map((rgb, j) => ({ rgb, n: counts[j] })).filter(c => c.n > 0);
+  }
+  const segDist = (c, a, b) => {
+    const ab = [0, 1, 2].map(i => b[i] - a[i]), ac = [0, 1, 2].map(i => c[i] - a[i]);
+    const t = clamp((ab[0] * ac[0] + ab[1] * ac[1] + ab[2] * ac[2]) / (d2rgb(a, b) || 1), 0, 1);
+    return Math.sqrt(d2rgb(c, a.map((v, i) => v + ab[i] * t)));
+  };
+  // flatAt(k) says whether pixel k sits in a flat area. The colours are taken from flat areas only:
+  // edges are blends, and JPG compression smears them with colours the logo never had.
+  function extractPalette(p, f, bg, maxColors = 6, flatAt) {
+    const all = [], flat = [], step = Math.max(1, Math.floor(f.length / 40000));
+    for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) {
+      const i = k * 4, c = [p[i], p[i + 1], p[i + 2]];
+      all.push(c); if (flatAt && flatAt(k)) flat.push(c);
+    }
+    if (!all.length) return [];
+    const clean = flat.length >= 300;
+    const km = kmeans(clean ? flat : all, maxColors), cs = km.map(c => c.rgb), base = clean ? flat.length : all.length;
+    // (a colour used only in lines thinner than 3 pixels has no flat area and is not found: on a
+    // compressed image it cannot be told apart from compression smear, which is far more common)
+    const counts = cs.map(() => 0);
+    for (const c of all) { let bi = 0, bd = Infinity; cs.forEach((q, j) => { const d = d2rgb(c, q); if (d < bd) { bd = d; bi = j; } }); counts[bi]++; }
     // merge near-duplicates (JPEG noise, antialiasing) and drop specks
-    let pal = cs.map((rgb, j) => ({ rgb, share: counts[j] / pts.length })).filter(c => c.share > 0);
+    // share = of every pixel (edges included, they go to the nearest colour); solid = of the flat
+    // areas only, which is what tells a real colour from an edge tint
+    let pal = cs.map((rgb, j) => ({ rgb, share: counts[j] / all.length, solid: km[j].n / base })).filter(c => c.share > 0);
     for (let merged = true; merged;) {
       merged = false;
       outer: for (let a = 0; a < pal.length; a++) for (let b = a + 1; b < pal.length; b++) {
         if (d2rgb(pal[a].rgb, pal[b].rgb) < 45 * 45) {
           const t = pal[a].share + pal[b].share;
-          pal[a] = { rgb: pal[a].rgb.map((v, i) => (v * pal[a].share + pal[b].rgb[i] * pal[b].share) / t), share: t };
+          pal[a] = { rgb: pal[a].rgb.map((v, i) => (v * pal[a].share + pal[b].rgb[i] * pal[b].share) / t), share: t, solid: pal[a].solid + pal[b].solid };
           pal.splice(b, 1); merged = true; break outer;
         }
       }
     }
-    pal = pal.filter(c => c.share >= 0.015).sort((a, b) => b.share - a.share);
-    const segDist = (c, a, b) => {
-      const ab = [0, 1, 2].map(i => b[i] - a[i]), ac = [0, 1, 2].map(i => c[i] - a[i]);
-      const t = clamp((ab[0] * ac[0] + ab[1] * ac[1] + ab[2] * ac[2]) / (d2rgb(a, b) || 1), 0, 1);
-      return Math.sqrt(d2rgb(c, a.map((v, i) => v + ab[i] * t)));
-    };
+    pal = pal.filter(c => c.solid >= 0.015).sort((a, b) => b.share - a.share);
+    // a faint tint of the removed background covering little is compression noise on that background
+    if (bg) pal = pal.filter(c => !(c.solid < 0.08 && d2rgb(c.rgb, bg) < 75 * 75));
     // a "colour" lying between two real ones (or between a real one and the removed background)
     // is just the soft edge where they meet
-    const anchors = bg ? [...pal, { rgb: bg, share: 1 }] : pal;
-    pal = pal.filter(c => !(c.share < 0.12 && anchors.some(a => a !== c && a.share > c.share &&
-      anchors.some(b => b !== c && b !== a && b.share > c.share && segDist(c.rgb, a.rgb, b.rgb) < 28))));
+    const anchors = bg ? [...pal, { rgb: bg, solid: 1 }] : pal;
+    pal = pal.filter(c => !(c.solid < 0.2 && anchors.some(a => a !== c && a.solid > c.solid &&
+      anchors.some(b => b !== c && b !== a && b.solid > c.solid && segDist(c.rgb, a.rgb, b.rgb) < 28))));
     return pal.map(c => ({ rgb: c.rgb, share: c.share, hex: toHex(c.rgb) }));
   }
 
@@ -201,7 +219,15 @@ window.Suite = (() => {
     if (o.mode !== 'color' || flat) {
       if (o.paletteDirty || !o.palette) {
         // keep the user's choices for colours that are still there after re-cleaning
-        const old = o.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb, flat ? 12 : 6);
+        // flat = no colour jump towards any neighbour one original pixel away
+        const ds = Math.max(1, Math.round(kk)), offs = [-ds * 4, ds * 4, -ds * w * 4, ds * w * 4];
+        const flatAt = k => {
+          const xx = k % w, y = (k - xx) / w, i = k * 4;
+          if (xx < ds || xx >= w - ds || y < ds || y >= h - ds) return false;
+          for (const q of offs) if (Math.max(Math.abs(p[i] - p[i + q]), Math.abs(p[i + 1] - p[i + 1 + q]), Math.abs(p[i + 2] - p[i + 2 + q])) > 36) return false;
+          return true;
+        };
+        const old = o.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb, flat ? 12 : 6, flatAt);
         defaultRoles(pal, o.fondo || [255, 255, 255]);
         pal.forEach(q => {
           const prev = old.find(v => d2rgb(v.rgb, q.rgb) < 40 * 40);
@@ -262,6 +288,7 @@ window.Suite = (() => {
     const out = newCanvas(x1 - x0 + 1, y1 - y0 + 1);
     out.getContext('2d').putImageData(d, -x0, -y0);
     out._px = Math.max(1, kk);   // how much the image was enlarged: the vectoriser works in original pixels
+    out._k = kk; out._x0 = x0; out._y0 = y0;   // and where this crop sits in the enlarged image
     return out;
   }
   const ROLE_NAMES = { ink: 'Tinta', trama: 'Trama', paper: 'Papel', ink2: 'Tinta 2' };
@@ -277,8 +304,9 @@ window.Suite = (() => {
   function vectorizar(src, o = {}) {
     const px = Math.max(1, o.px || src._px || 1);
     // work on a grid of about 3 cells per original pixel (never coarser than the source, never huge)
-    const u = clamp(Math.min(3 / px, (o.max || 3200) / Math.max(src.width, src.height)), 1, 2), g = px * u;   // g = grid cells per original pixel
-    const sigma = (o.hard ? 0.75 : 0.6) * g, B = Math.ceil(sigma * 3) + 2;
+    const u = clamp(Math.min(3 / px, (o.max || 3200) / Math.max(src.width, src.height)), 1, 3), g = px * u;   // g = grid cells per original pixel
+    const soft = o.soft || 1;   // user's "suavizado": 1 = normal, more = calmer edges, less = more detail
+    const sigma = 0.6 * g * soft, B = Math.ceil(sigma * 3) + 2;
     const W = Math.round(src.width * u) + 2 * B, H = Math.round(src.height * u) + 2 * B, n = W * H;
     const c = newCanvas(W, H), x = c.getContext('2d');
     x.imageSmoothingQuality = 'high'; x.drawImage(src, B, B, W - 2 * B, H - 2 * B);
@@ -318,8 +346,9 @@ window.Suite = (() => {
       if (e < n) { const v0 = a[e], v1 = a[e + 1]; return [e % W + (iso - v0) / (v1 - v0), (e / W) | 0]; }
       const i = e - n, v0 = a[i], v1 = a[i + W]; return [i % W, ((i / W) | 0) + (iso - v0) / (v1 - v0)];
     };
-    const seen = new Set(), minArea = (o.minArea || 3) * g * g, tol = (o.tol || 0.25) * g, parts = [];
-    const f2 = v => +((v - B) / u).toFixed(2);
+    const seen = new Set(), minArea = (o.minArea || 3) * g * g, tol = (o.tol || 0.25) * g * soft, parts = [];
+    // o.scale / o.dx / o.dy: write the curves in another canvas' coordinates
+    const sc = o.scale || 1, fx = v => +((v - B) / u * sc + (o.dx || 0)).toFixed(2), fy = v => +((v - B) / u * sc + (o.dy || 0)).toFixed(2);
     for (const start of links.keys()) {
       if (seen.has(start)) continue;
       const P = []; let prev = -1, cur = start;
@@ -331,10 +360,10 @@ window.Suite = (() => {
       let area = 0;
       for (let i = 0, N = P.length; i < N; i++) { const p = P[i], q = P[(i + 1) % N]; area += p[0] * q[1] - q[0] * p[1]; }
       if (P.length < 6 || Math.abs(area) / 2 < minArea) continue;
-      const bez = fitLoop(P, Math.max(3, Math.round(2.2 * g)), tol);
+      const bez = fitLoop(P, Math.max(3, Math.round(2.2 * g * Math.max(1, soft))), tol);
       if (!bez.length) continue;
-      let d = `M${f2(bez[0][0][0])} ${f2(bez[0][0][1])}`;
-      for (const b of bez) d += `C${f2(b[1][0])} ${f2(b[1][1])} ${f2(b[2][0])} ${f2(b[2][1])} ${f2(b[3][0])} ${f2(b[3][1])}`;
+      let d = `M${fx(bez[0][0][0])} ${fy(bez[0][0][1])}`;
+      for (const b of bez) d += `C${fx(b[1][0])} ${fy(b[1][1])} ${fx(b[2][0])} ${fy(b[2][1])} ${fx(b[3][0])} ${fy(b[3][1])}`;
       parts.push(d + 'Z');
     }
     return parts.length ? parts.join(' ') : null;
@@ -434,24 +463,87 @@ window.Suite = (() => {
     fitCubic(P, at, b, [-tc[0], -tc[1]], t2, err, out);
   }
 
+  // Every pixel of a flat-colour image is either one of the palette colours or, on an edge, a blend
+  // of two of them (or of one and the background). mezcla() works that out for the whole image:
+  // for each pixel, the two colours involved and how much of the second one. From that, the exact
+  // coverage of any set of colours follows, which puts each edge where it really is (between
+  // pixels), with no fringe of a third colour and no "colours" invented by JPG compression.
+  function mezcla(img, o) {
+    const ref = limpiarImagen(img, o), pal = o.palette || [];   // palette + how the cleaned image is cropped
+    if (!pal.length) return null;
+    const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height, sN = Math.min(1, 1600 / Math.max(nw, nh));
+    const w = Math.max(1, Math.round(nw * sN)), h = Math.max(1, Math.round(nh * sN)), c = newCanvas(w, h), x = c.getContext('2d');
+    x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, w, h);
+    const p = x.getImageData(0, 0, w, h).data, bgI = detectBg(p, w, h), N = w * h;
+    const nodes = pal.map(q => q.rgb), nc = nodes.length;
+    if (!bgI.transparent && (o.mode !== 'color' || o.removeBg)) nodes.push(bgI.rgb);   // the background is one more "colour", worth nothing
+    const pairs = [];
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const v = [nodes[j][0] - nodes[i][0], nodes[j][1] - nodes[i][1], nodes[j][2] - nodes[i][2]];
+      pairs.push([i, j, v[0], v[1], v[2], v[0] * v[0] + v[1] * v[1] + v[2] * v[2] || 1]);
+    }
+    const iA = new Uint8Array(N), iB = new Uint8Array(N), tB = new Float32Array(N), al = new Float32Array(N);
+    for (let k = 0, i = 0; k < N; k++, i += 4) {
+      const a = p[i + 3] / 255; al[k] = a;
+      if (a < 0.02) { iA[k] = iB[k] = 255; continue; }
+      const r = p[i], g = p[i + 1], b = p[i + 2];
+      let n1 = 0, d1 = Infinity;
+      for (let j = 0; j < nodes.length; j++) { const q = nodes[j], d = (r - q[0]) ** 2 + (g - q[1]) ** 2 + (b - q[2]) ** 2; if (d < d1) { d1 = d; n1 = j; } }
+      let ba = n1, bb = n1, bt = 0;
+      if (d1 > 24 * 24) {   // not one of the colours: find the pair whose blend explains it best
+        let bd = d1;
+        for (const q of pairs) {
+          const A = nodes[q[0]], wx = r - A[0], wy = g - A[1], wz = b - A[2];
+          const t = clamp((wx * q[2] + wy * q[3] + wz * q[4]) / q[5], 0, 1), d = (wx - q[2] * t) ** 2 + (wy - q[3] * t) ** 2 + (wz - q[4] * t) ** 2;
+          if (d < bd - 1) { bd = d; ba = q[0]; bb = q[1]; bt = t; }
+        }
+      }
+      iA[k] = ba; iB[k] = bb; tB[k] = bt;
+    }
+    return { w, h, nc, iA, iB, tB, al, pal, scale: ref._k / sN, dx: -ref._x0, dy: -ref._y0 };
+  }
+  // mask (alpha = coverage) of the palette colours that pass `test`
+  function maskOf(M, test) {
+    const m = newCanvas(M.w, M.h), mx = m.getContext('2d'), id = mx.createImageData(M.w, M.h), q = id.data;
+    const on = new Uint8Array(256); for (let j = 0; j < M.nc; j++) on[j] = test(j) ? 1 : 0;
+    for (let k = 0, N = M.w * M.h; k < N; k++) {
+      const a = M.iA[k]; if (a === 255) continue;
+      const t = M.tB[k], v = M.al[k] * (on[a] * (1 - t) + on[M.iB[k]] * t);
+      if (v > 0) q[k * 4 + 3] = Math.round(v * 255);
+    }
+    mx.putImageData(id, 0, 0);
+    return m;
+  }
+
   // an image as flat vector layers, ready for an SVG: [{ id, label, fill, d }] in the cleaned image's pixels.
   // 1 / 2 inks: one layer per ink (halftone becomes a 50 % tint). Colours: one layer per colour, stacked
   // from the largest up, each one also covering what goes above it so no hairline gaps show between colours.
+  // o.suave (0-100, 50 = normal): how much the edges are calmed
   function capasVector(img, o) {
     const out = [], tint = (hex, t) => toHex(hexToRgb(hex).map(v => v + (255 - v) * t));
-    if (o.mode === 'color') {
-      limpiarImagen(img, o);   // makes sure the palette exists
-      (o.palette || []).forEach((c, k) => {
-        const d = vectorizar(limpiarImagen(img, o, { stack: k }), { hard: true });
-        if (d) out.push({ id: 'Color_' + (k + 1), label: 'Color ' + c.hex, fill: c.hex, d });
-      });
-      return out;
-    }
+    const s = o.suave == null ? 50 : o.suave, soft = s <= 50 ? 0.5 + s / 100 : 1 + (s - 50) / 50 * 1.6;
     const seps = o.mode === 'ink2' ? [['ink', 'Tinta_1', o.ink, ''], ['ink2', 'Tinta_2', o.ink2, '']]
       : [['ink', 'Tinta_1', o.ink, ''], ['trama', 'Tinta_1_TRAMA', tint(o.ink, 0.5), ' - trama 50 %']];
-    for (const [role, id, fill, extra] of seps) {
-      const d = vectorizar(limpiarImagen(img, o, role));
-      if (d) out.push({ id, label: id.replace(/_/g, ' ') + extra, fill, d });
+    if (o.mode === 'ink' && o.invert) {   // "print the background instead": straight from the cleaned image
+      for (const [role, id, fill, extra] of seps) {
+        const d = vectorizar(limpiarImagen(img, o, role), { soft });
+        if (d) out.push({ id, label: id.replace(/_/g, ' ') + extra, fill, d });
+      }
+      return out;
+    }
+    const M = mezcla(img, o);
+    if (!M) return out;
+    const trace = test => vectorizar(maskOf(M, test), { soft, scale: M.scale, dx: M.dx, dy: M.dy });
+    if (o.mode === 'color') M.pal.forEach((c, k) => {
+      const d = trace(j => j >= k);
+      if (d) out.push({ id: 'Color_' + (k + 1), label: 'Color ' + c.hex, fill: c.hex, d });
+    });
+    else {
+      const key = o.mode === 'ink2' ? 'role2' : 'role1';
+      for (const [role, id, fill, extra] of seps) {
+        const d = trace(j => M.pal[j][key] === role);
+        if (d) out.push({ id, label: id.replace(/_/g, ' ') + extra, fill, d });
+      }
     }
     return out;
   }

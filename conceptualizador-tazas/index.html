@@ -129,6 +129,8 @@
         <div class="row" id="inkRow"><span>Tinta</span><div class="swatches" id="inks"></div></div>
         <div class="row" id="ink2Row"><span>Tinta 2</span><div class="swatches" id="inks2"></div></div>
         <label class="check" id="vecRow"><input type="checkbox" id="vec"> Vectorizar (logos de colores planos)</label>
+        <div class="row" id="suaveRow"><span>Suavizado</span><input type="range" id="suave" min="0" max="100" value="50"><output id="suaveO"></output></div>
+        <div class="note" id="suaveNote">Súbelo si los bordes salen temblorosos; bájalo si se pierden detalles finos.</div>
         <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo de la imagen</label>
         <div class="row" id="thrRow"><span>Limpieza</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrO"></output></div>
         <div class="note" id="thrNote">Si la imagen sale con manchas o le falta detalle, mueve “Limpieza”.</div>
@@ -861,7 +863,7 @@
     const l = {
       id: newId(), type: 'img', name: file.name, visible: true, img, imgId: null, x: 0, y: 0, w: 400, rot: 0, opacity: 1,
       // photos keep their background; logos on a flat background lose it
-      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096, min: logo ? 1400 : 600 },
+      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096, min: logo ? 900 : 600 },
     };
     rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
   }
@@ -933,6 +935,7 @@
     });
   }
   $('mode').onchange = onSel((l, e) => { l.o.mode = e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
+  $('suave').oninput = onSel((l, e) => { l.o.suave = +e.target.value; rebuild(l); update(); });
   $('vec').onchange = onSel((l, e) => { l.o.vector = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
   $('thr').oninput = onSel((l, e) => { l.o.thr = +e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
   $('rmBg').onchange = onSel((l, e) => { l.o.removeBg = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
@@ -996,6 +999,8 @@
       $('mode').value = o.mode; $('thr').value = o.thr; $('thrO').textContent = o.thr;
       $('rmBg').checked = o.removeBg; $('invert').checked = o.invert;
       $('vec').checked = !!o.vector; $('vecRow').classList.toggle('hidden', ink);
+      const sv = o.suave == null ? 50 : o.suave;
+      $('suave').value = sv; $('suaveO').textContent = sv; $('suaveRow').classList.toggle('hidden', !isVector(l)); $('suaveNote').classList.toggle('hidden', !isVector(l));
       $('inkRow').classList.toggle('hidden', !ink);
       $('ink2Row').classList.toggle('hidden', o.mode !== 'ink2');
       $('palRow').classList.toggle('hidden', !ink || !o.palette || o.palette.length < 2);
