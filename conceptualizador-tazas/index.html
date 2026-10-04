@@ -290,16 +290,24 @@
   // column by column (each pixel column takes the piece of image the curve assigns to it, so there
   // are no seams), and that one is laid on the strip
   const WT = newCanvas(2, 2), WT2 = newCanvas(2, 2);
+  // fills a vectorised image's curves, lw wide, centred on the current origin
+  function fillVec(c, l, lw) {
+    const k = lw / l.vec.w;
+    c.save(); c.scale(k, k); c.translate(-l.vec.w / 2, -l.vec.h / 2);
+    l.vec.paths.forEach(p => { c.fillStyle = p.fill; c.fill(p.p2d, 'evenodd'); });
+    c.restore();
+  }
   function drawWarped(c, l, ox) {
     const [lw, lh] = dimsOf(l), a = l.rot * Math.PI / 180, co = Math.abs(Math.cos(a)), si = Math.abs(Math.sin(a));
     const bw = lw * co + lh * si, bh = lw * si + lh * co, fw = 2 * arcOf(bw / 2);
-    const r = Math.min(l.proc.width / lw, 2400 / Math.max(fw, bh));
+    const vec = l.vec && !live, r = vec ? Math.min(1.6, 3200 / Math.max(fw, bh)) : Math.min(l.proc.width / lw, 2400 / Math.max(fw, bh));
     const tw = Math.max(2, Math.ceil(bw * r)), th = Math.max(2, Math.ceil(bh * r)), W2 = Math.max(2, Math.ceil(fw * r));
     if (WT.width !== tw || WT.height !== th) { WT.width = tw; WT.height = th; }
     if (WT2.width !== W2 || WT2.height !== th) { WT2.width = W2; WT2.height = th; }
     const t = WT.getContext('2d'), t2 = WT2.getContext('2d');
     t.setTransform(1, 0, 0, 1, 0, 0); t.clearRect(0, 0, tw, th);
-    t.translate(tw / 2, th / 2); t.rotate(a); t.drawImage(l.proc, -lw * r / 2, -lh * r / 2, lw * r, lh * r);
+    t.translate(tw / 2, th / 2); t.rotate(a);
+    if (vec) fillVec(t, l, lw * r); else t.drawImage(l.proc, -lw * r / 2, -lh * r / 2, lw * r, lh * r);
     t2.clearRect(0, 0, W2, th);
     let u0 = flatOf(-fw / 2);
     for (let x = 0; x < W2; x++) {
@@ -399,10 +407,21 @@
     return box ? trim(c) : null;
   }
   // (re)build a layer's canvas from its source and settings
+  // Vectorised images (1 / 2 colours, or "Vectorizar") are drawn from their curves everywhere:
+  // screen, mug, PNG and SVG, so they are sharp at any size. Tracing takes a moment, so right after a
+  // change the layer shows its pixels (l.proc) and the curves (l.vec) arrive a moment later.
+  const isVector = l => l.type === 'img' && !!l.img && (l.o.mode !== 'color' || !!l.o.vector);
+  function ensureVec(l) {
+    clearTimeout(l._vt);
+    if (l.vec || !isVector(l) || !l.proc) return;
+    l.vec = { w: l.proc.width, h: l.proc.height, paths: Suite.capasVector(l.img, l.o).map(p => ({ ...p, p2d: new Path2D(p.d) })) };
+  }
   function rebuild(l) {
     if (l.type === 'img') {
       l.o.fondo = hexToRgb(S.colors.body);
       l.proc = l.img ? Suite.limpiarImagen(l.img, l.o) : null;
+      l.vec = null; clearTimeout(l._vt);
+      if (isVector(l)) l._vt = setTimeout(() => { ensureVec(l); if (S.layers.includes(l)) render(); }, 250);
     } else {
       l.proc = l.type === 'text' ? renderText(l) : renderContact(l);
       if (l.proc) l.w = l.proc.width * l.fs / l._px;
@@ -423,7 +442,11 @@
       copies(l).forEach(o => {
         c.save(); c.globalAlpha = l.opacity;
         if (l.curva) drawWarped(c, l, dx + o);
-        else { c.translate(l.x + dx + o, l.y); c.rotate(l.rot * Math.PI / 180); c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh); }
+        else {
+          c.translate(l.x + dx + o, l.y); c.rotate(l.rot * Math.PI / 180);
+          if (l.vec && !live) fillVec(c, l, lw);
+          else c.drawImage(l.proc, -lw / 2, -lh / 2, lw, lh);
+        }
         c.restore();
       });
     });
@@ -638,7 +661,7 @@
   // every finished change leaves a snapshot of the design; the layers' canvases are shared, not copied
   const hist = []; let hi = -1, histTimer = null;
   const snap = () => ({ model: { ...S.model }, colors: { ...S.colors }, layout: S.layout, sel: S.sel, layers: S.layers.map(cloneLayer) });
-  const sigOf = s => JSON.stringify([s.model, s.colors, s.layout, s.layers.map(({ img, proc, ...r }) => r)]);
+  const sigOf = s => JSON.stringify([s.model, s.colors, s.layout, s.layers.map(({ img, proc, vec, _vt, ...r }) => r)]);
   function commit() {
     clearTimeout(histTimer);
     const s = snap(), sig = sigOf(s);
@@ -838,7 +861,7 @@
     const l = {
       id: newId(), type: 'img', name: file.name, visible: true, img, imgId: null, x: 0, y: 0, w: 400, rot: 0, opacity: 1,
       // photos keep their background; logos on a flat background lose it
-      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096 },
+      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096, min: logo ? 1400 : 600 },
     };
     rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
   }
@@ -1206,6 +1229,7 @@
     return c;
   }
   function mockup() {
+    S.layers.forEach(ensureVec);
     const list = [];
     if ($('fAct').checked) list.push([cam.yaw, cam.pitch, cam.zoom]);
     if ($('fIzq').checked) list.push([VIEWS.izq(), 0.2, 1]);
@@ -1226,11 +1250,12 @@
   // the strip alone at real size, 300 dpi, mirrored for sublimation
   const DPI = 300;
   function printCanvas(mirror) {
+    S.layers.forEach(ensureVec); const wasLive = live; live = false;
     const { w, h } = D(), k = DPI / 25.4 / U, c = newCanvas(Math.round(w * k), Math.round(h * k)), x = c.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
     if (mirror) { x.translate(c.width, 0); x.scale(-1, 1); }
     x.scale(k, k); x.imageSmoothingQuality = 'high';
-    drawStrip(x);
+    drawStrip(x); live = wasLive;
     return c;
   }
   // the same strip as curves: an SVG in real millimetres, one group per layer
@@ -1245,6 +1270,7 @@
     });
   }
   function layerVector(l) {
+    ensureVec(l);
     const v = layerFlat(l);
     if (!v || !l.curva) return v;
     if (v.paths) return { abs: true, body: v.paths.map(p => `<path${p.id ? ` id="${p.id}"` : ''} fill="${p.fill}" fill-rule="evenodd" d="${warpPath(p.d, l, v)}"/>`).join('') };
@@ -1258,7 +1284,7 @@
     if (l.type === 'img') {
       const w = l.proc.width, hh = l.proc.height;
       if (l.o.mode === 'color' && !l.o.vector) return { w, h: hh, body: `<image width="${w}" height="${hh}" href="${l.proc.toDataURL('image/png')}"/>` };
-      const paths = Suite.capasVector(l.img, l.o);
+      const paths = l.vec.paths;
       return { w, h: hh, paths, body: paths.map(c => `<path id="${c.id}" fill="${c.fill}" fill-rule="evenodd" d="${c.d}"><title>${esc(c.label)}</title></path>`).join('') };
     }
     // text and contact strips are drawn very large and traced: they travel as curves, no fonts needed
@@ -1372,7 +1398,7 @@ ${body}
   renderFonts(); syncDims(); renderModels(); setStage('3d'); update(); S.dirty = false;
   db.all('modelos').then(list => { list.sort((a, b) => a.creado - b.creado).forEach(m => MODELOS.push({ ...m, local: true })); renderModels(); });
   // lets the automated tests drive the editor
-  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, buildSVG, corners, margins, align, snapDelta, selected, paints: () => paintCount, hist: () => [hi, hist.length] };
+  window.__mm = { S, cam, render, update, rebuild, addLayer, printCanvas, mockup, pick3d, geo, D, zone, buildSVG, ensureVec, corners, margins, align, snapDelta, selected, paints: () => paintCount, hist: () => [hi, hist.length] };
   app.iniciar();
 })();
 </script>

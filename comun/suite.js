@@ -159,7 +159,7 @@ window.Suite = (() => {
   }
 
   // limpiarImagen(img, o) returns the cleaned image as a canvas (background removed, margins trimmed).
-  // o = { mode: 'color' | 'ink' | 'ink2', thr, removeBg, invert, ink, ink2, ink2Auto, palette, paletteDirty, fondo: [r,g,b], max: longest side in px }
+  // o = { mode: 'color' | 'ink' | 'ink2', thr, removeBg, invert, ink, ink2, ink2Auto, palette, paletteDirty, fondo: [r,g,b], max / min: longest side in px (big images are shrunk to max, small ones enlarged to min) }
   // o.palette is filled in here. With sep = 'ink' | 'ink2' | 'trama' it returns that ink alone
   // as a solid mask with the same size/crop (used for layered print files).
   // o.vector (with mode 'color'): the image is reduced to its flat colours, as it will be once
@@ -167,7 +167,7 @@ window.Suite = (() => {
   function limpiarImagen(img, o, sep) {
     let w = img.naturalWidth || img.width || 1000, h = img.naturalHeight || img.height || 1000;
     // cap huge images, upscale tiny ones (e.g. small SVGs) so they stay crisp
-    const max = Math.max(w, h), cap = o.max || 1600, kk = max > cap ? cap / max : max < 600 ? 600 / max : 1;
+    const max = Math.max(w, h), cap = o.max || 1600, lo = o.min || 600, kk = max > cap ? cap / max : max < lo ? lo / max : 1;
     w = Math.round(w * kk); h = Math.round(h * kk);
     const c = newCanvas(w, h), x = c.getContext('2d');
     x.imageSmoothingQuality = 'high';
@@ -220,12 +220,23 @@ window.Suite = (() => {
         const du = u - Math.round(u), dv = v - Math.round(v), dist = Math.hypot(du, dv);
         return clamp((R2 - dist) * period * 0.9 + 0.5, 0, 1);
       };
+      // an edge pixel is the colour mixed with the removed background: it belongs to the colour it
+      // fades from (the one whose line to the background passes closest), not to whichever palette
+      // colour it happens to resemble (light blue on white is blue, not yellow)
+      const bgc = bgInfo.transparent ? null : bgInfo.rgb;
       for (let k = 0, i = 0; k < n; k++, i += 4) {
         let a = 0, col = ink1;
         if (f[k] > 0.01 && pal.length) {
           let bi = 0, bd = Infinity;
+          const edge = bgc && f[k] < 0.98, r0 = p[i], g0 = p[i + 1], b0 = p[i + 2];
           for (let j = 0; j < pal.length; j++) {
-            const q = pal[j].rgb, dd = (p[i] - q[0]) ** 2 + (p[i + 1] - q[1]) ** 2 + (p[i + 2] - q[2]) ** 2;
+            const q = pal[j].rgb;
+            let dd = (r0 - q[0]) ** 2 + (g0 - q[1]) ** 2 + (b0 - q[2]) ** 2;
+            if (edge) {
+              const vx = q[0] - bgc[0], vy = q[1] - bgc[1], vz = q[2] - bgc[2], wx = r0 - bgc[0], wy = g0 - bgc[1], wz = b0 - bgc[2];
+              const t = clamp((wx * vx + wy * vy + wz * vz) / (vx * vx + vy * vy + vz * vz || 1), 0, 1);
+              dd = (wx - vx * t) ** 2 + (wy - vy * t) ** 2 + (wz - vz * t) ** 2 + 0.03 * dd;
+            }
             if (dd < bd) { bd = dd; bi = j; }
           }
           const role = pal[bi][roleKey], xx = k % w;
@@ -250,6 +261,7 @@ window.Suite = (() => {
     x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
     const out = newCanvas(x1 - x0 + 1, y1 - y0 + 1);
     out.getContext('2d').putImageData(d, -x0, -y0);
+    out._px = Math.max(1, kk);   // how much the image was enlarged: the vectoriser works in original pixels
     return out;
   }
   const ROLE_NAMES = { ink: 'Tinta', trama: 'Trama', paper: 'Papel', ink2: 'Tinta 2' };
@@ -259,16 +271,22 @@ window.Suite = (() => {
   // 1) the edge is found *between* pixels (marching squares on the soft alpha, lightly smoothed),
   //    so it does not copy the pixel staircase; 2) corners are kept sharp; 3) everything between
   //    two corners is fitted with as few Bézier curves as the tolerance allows.
+  // o.px = how many pixels of `src` one pixel of the original image takes (images enlarged before
+  // cleaning): smoothing, corner size and tolerance are all measured in original pixels, so the
+  // curves ignore pixel steps and JPG wobble instead of copying them.
   function vectorizar(src, o = {}) {
-    const u = clamp((o.max || 3200) / Math.max(src.width, src.height), 1, 2), B = 3;
+    const px = Math.max(1, o.px || src._px || 1);
+    // work on a grid of about 3 cells per original pixel (never coarser than the source, never huge)
+    const u = clamp(Math.min(3 / px, (o.max || 3200) / Math.max(src.width, src.height)), 1, 2), g = px * u;   // g = grid cells per original pixel
+    const sigma = (o.hard ? 0.75 : 0.6) * g, B = Math.ceil(sigma * 3) + 2;
     const W = Math.round(src.width * u) + 2 * B, H = Math.round(src.height * u) + 2 * B, n = W * H;
     const c = newCanvas(W, H), x = c.getContext('2d');
     x.imageSmoothingQuality = 'high'; x.drawImage(src, B, B, W - 2 * B, H - 2 * B);
-    const px = x.getImageData(0, 0, W, H).data, a = new Float32Array(n), t = new Float32Array(n);
-    for (let i = 0; i < n; i++) a[i] = px[i * 4 + 3] / 255;
-    // a few light passes (1-2-1) melt pixel steps and JPG wobble into a clean gradient;
-    // corners rounded by this are rebuilt sharp later. Masks with hard edges ask for more (o.smooth)
-    for (let pass = 0; pass < (o.smooth || 3); pass++) {
+    const im = x.getImageData(0, 0, W, H).data, a = new Float32Array(n), t = new Float32Array(n);
+    for (let i = 0; i < n; i++) a[i] = im[i * 4 + 3] / 255;
+    // light passes (1-2-1, each adds 0.5 of variance) melt pixel steps and JPG wobble into a clean
+    // gradient about 0.6 original pixels wide; corners rounded by this are rebuilt sharp later
+    for (let pass = 0, n2 = clamp(Math.round(2 * sigma * sigma), 2, 40); pass < n2; pass++) {
       for (let i = 1; i < n - 1; i++) t[i] = (a[i - 1] + 2 * a[i] + a[i + 1]) / 4;
       for (let i = W; i < n - W; i++) a[i] = (t[i - W] + 2 * t[i] + t[i + W]) / 4;
     }
@@ -300,7 +318,7 @@ window.Suite = (() => {
       if (e < n) { const v0 = a[e], v1 = a[e + 1]; return [e % W + (iso - v0) / (v1 - v0), (e / W) | 0]; }
       const i = e - n, v0 = a[i], v1 = a[i + W]; return [i % W, ((i / W) | 0) + (iso - v0) / (v1 - v0)];
     };
-    const seen = new Set(), minArea = (o.minArea || 3) * u * u, tol = (o.tol || 0.3) * u, parts = [];
+    const seen = new Set(), minArea = (o.minArea || 3) * g * g, tol = (o.tol || 0.25) * g, parts = [];
     const f2 = v => +((v - B) / u).toFixed(2);
     for (const start of links.keys()) {
       if (seen.has(start)) continue;
@@ -313,7 +331,7 @@ window.Suite = (() => {
       let area = 0;
       for (let i = 0, N = P.length; i < N; i++) { const p = P[i], q = P[(i + 1) % N]; area += p[0] * q[1] - q[0] * p[1]; }
       if (P.length < 6 || Math.abs(area) / 2 < minArea) continue;
-      const bez = fitLoop(P, Math.max(3, Math.round(3 * u)), tol);
+      const bez = fitLoop(P, Math.max(3, Math.round(2.2 * g)), tol);
       if (!bez.length) continue;
       let d = `M${f2(bez[0][0][0])} ${f2(bez[0][0][1])}`;
       for (const b of bez) d += `C${f2(b[1][0])} ${f2(b[1][1])} ${f2(b[2][0])} ${f2(b[2][1])} ${f2(b[3][0])} ${f2(b[3][1])}`;
@@ -352,7 +370,7 @@ window.Suite = (() => {
     const V = corners.map((c, k) => {
       // each edge needs a straight-ish stretch between this corner's rounding and the next one's
       const g0 = gap(corners[(k - 1 + M) % M], c), g1 = gap(c, corners[(k + 1) % M]);
-      if (g0 < 2 * K + 3 || g1 < 2 * K + 3) return { p: P[c], cut: 1 };
+      if (g0 < 2 * K + 2 || g1 < 2 * K + 2) return { p: P[c], cut: 1 };
       const a = at(c - K), da = vNorm(vSub(a, at(c - Math.min(2 * K, g0 - K)))), b = at(c + K), db = vNorm(vSub(b, at(c + Math.min(2 * K, g1 - K))));
       const den = da[0] * db[1] - da[1] * db[0];
       if (Math.abs(den) > 0.2) {
@@ -424,7 +442,7 @@ window.Suite = (() => {
     if (o.mode === 'color') {
       limpiarImagen(img, o);   // makes sure the palette exists
       (o.palette || []).forEach((c, k) => {
-        const d = vectorizar(limpiarImagen(img, o, { stack: k }), { smooth: 4 });
+        const d = vectorizar(limpiarImagen(img, o, { stack: k }), { hard: true });
         if (d) out.push({ id: 'Color_' + (k + 1), label: 'Color ' + c.hex, fill: c.hex, d });
       });
       return out;

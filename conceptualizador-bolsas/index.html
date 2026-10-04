@@ -1719,10 +1719,12 @@
 
   // vectorise a mask canvas (anything opaque = ink) into SVG path data, in the mask's pixel units.
   // The tracer is the suite's shared one (comun/suite.js): smooth curves, sharp corners
-  function traceMask(mask) {
-    const d = Suite.vectorizar(mask);
+  function traceMask(mask, px = 1) {
+    const d = Suite.vectorizar(mask, { px });
     return d ? { d, scale: 1 } : null;
   }
+  // small logos are enlarged to 600 px before cleaning: tell the tracer how big an original pixel is
+  const logoPx = () => { const m = Math.max(S.logo.naturalWidth || 1000, S.logo.naturalHeight || 1000); return m < 600 ? 600 / m : 1; };
 
   const inkName = hex => (INKS.find(([, c]) => c.toLowerCase() === hex.toLowerCase()) || [hex])[0];
   const xmlEsc = t => t.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
@@ -1748,7 +1750,7 @@
           ? [['ink', 'Tinta_1', S.ink], ['ink2', 'Tinta_2', S.ink2]]
           : [['ink', 'Tinta_1', S.ink], ['trama', 'Tinta_1_TRAMA', S.ink]];
         for (const [role, id, hex] of seps) {
-          const t = traceMask(processLogo(role));
+          const t = traceMask(processLogo(role), logoPx());
           if (!t) continue;
           const isTrama = role === 'trama';
           const label = isTrama ? `Tinta 1 ${inkName(hex)} - TRAMA 50% (aplicar trama al sacar el fotolito)` : `${id.replace('_', ' ')} ${inkName(hex)}`;
