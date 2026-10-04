@@ -301,22 +301,65 @@ window.Suite = (() => {
   // o.px = how many pixels of `src` one pixel of the original image takes (images enlarged before
   // cleaning): smoothing, corner size and tolerance are all measured in original pixels, so the
   // curves ignore pixel steps and JPG wobble instead of copying them.
+  // `src` is a canvas, or a bare coverage field { width, height, alpha: Float32Array (0..1) }
   function vectorizar(src, o = {}) {
     const px = Math.max(1, o.px || src._px || 1);
-    // work on a grid of about 3 cells per original pixel (never coarser than the source, never huge)
-    const u = clamp(Math.min(3 / px, (o.max || 3200) / Math.max(src.width, src.height)), 1, 3), g = px * u;   // g = grid cells per original pixel
+    const SW = src.width, SH = src.height, field = src.alpha || null;
+    const data = field || src.getContext('2d').getImageData(0, 0, SW, SH).data, st = field ? 1 : 4, k0 = field ? 0 : 3, unit = field ? 1 : 1 / 255;
+    // only the part that has something drawn is processed
+    let bx0 = SW, by0 = SH, bx1 = -1, by1 = -1;
+    for (let y = 0, i = k0, min = 0.03 / unit; y < SH; y++) for (let xx = 0; xx < SW; xx++, i += st) if (data[i] > min) {
+      if (xx < bx0) bx0 = xx; if (xx > bx1) bx1 = xx; if (y < by0) by0 = y; if (y > by1) by1 = y;
+    }
+    if (bx1 < 0) return null;
+    const sw = bx1 - bx0 + 1, sh = by1 - by0 + 1;
+    // Grid: about 3 cells per original pixel for small images; images that are already big are
+    // traced at their own resolution (the edge is found between cells anyway), which keeps this fast
+    const u = clamp(Math.min(3 / px, (o.max || 1200) / Math.max(sw, sh)), 1, 3), g = px * u;   // g = grid cells per original pixel
     const soft = o.soft || 1;   // user's "suavizado": 1 = normal, more = calmer edges, less = more detail
-    const sigma = 0.6 * g * soft, B = Math.ceil(sigma * 3) + 2;
-    const W = Math.round(src.width * u) + 2 * B, H = Math.round(src.height * u) + 2 * B, n = W * H;
-    const c = newCanvas(W, H), x = c.getContext('2d');
-    x.imageSmoothingQuality = 'high'; x.drawImage(src, B, B, W - 2 * B, H - 2 * B);
-    const im = x.getImageData(0, 0, W, H).data, a = new Float32Array(n), t = new Float32Array(n);
-    for (let i = 0; i < n; i++) a[i] = im[i * 4 + 3] / 255;
-    // light passes (1-2-1, each adds 0.5 of variance) melt pixel steps and JPG wobble into a clean
-    // gradient about 0.6 original pixels wide; corners rounded by this are rebuilt sharp later
-    for (let pass = 0, n2 = clamp(Math.round(2 * sigma * sigma), 2, 40); pass < n2; pass++) {
-      for (let i = 1; i < n - 1; i++) t[i] = (a[i - 1] + 2 * a[i] + a[i + 1]) / 4;
-      for (let i = W; i < n - W; i++) a[i] = (t[i - W] + 2 * t[i] + t[i + W]) / 4;
+    const sigma = 0.6 * g * soft, B = Math.ceil(sigma * 3) + 3;
+    const gw = Math.round(sw * u), gh = Math.round(sh * u), W = gw + 2 * B, H = gh + 2 * B, n = W * H;
+    const a = new Float32Array(n), t = new Float32Array(n);
+    if (u === 1) {
+      for (let y = 0; y < sh; y++) for (let xx = 0, d = (y + B) * W + B, i = ((y + by0) * SW + bx0) * st + k0; xx < sw; xx++, i += st) a[d + xx] = data[i] * unit;
+    } else {
+      // enlarge with plain bilinear sampling (no trip through a canvas)
+      const xi0 = new Int32Array(gw), xi1 = new Int32Array(gw), xf = new Float32Array(gw);
+      for (let X = 0; X < gw; X++) { const sx = clamp((X + 0.5) / u - 0.5 + bx0, 0, SW - 1), f0 = Math.floor(sx); xi0[X] = f0 * st + k0; xi1[X] = Math.min(SW - 1, f0 + 1) * st + k0; xf[X] = sx - f0; }
+      for (let Y = 0; Y < gh; Y++) {
+        const sy = clamp((Y + 0.5) / u - 0.5 + by0, 0, SH - 1), y0 = Math.floor(sy), fy0 = sy - y0, r0 = y0 * SW * st, r1 = Math.min(SH - 1, y0 + 1) * SW * st, d = (Y + B) * W + B;
+        for (let X = 0; X < gw; X++) {
+          const f = xf[X], top = data[r0 + xi0[X]] * (1 - f) + data[r0 + xi1[X]] * f, bot = data[r1 + xi0[X]] * (1 - f) + data[r1 + xi1[X]] * f;
+          a[d + X] = (top * (1 - fy0) + bot * fy0) * unit;
+        }
+      }
+    }
+    // Smoothing melts pixel steps and JPG wobble into a clean gradient about 0.6 original pixels
+    // wide; corners rounded by it are rebuilt sharp later. Little smoothing: a few 1-2-1 passes.
+    // More: three box blurs, which cost the same whatever the radius (a slider must not freeze the app)
+    const n2 = Math.round(2 * sigma * sigma);
+    if (n2 <= 4) {
+      for (let pass = 0; pass < Math.max(2, n2); pass++) {
+        for (let i = 1; i < n - 1; i++) t[i] = (a[i - 1] + 2 * a[i] + a[i + 1]) / 4;
+        for (let i = W; i < n - W; i++) a[i] = (t[i - W] + 2 * t[i] + t[i + W]) / 4;
+      }
+    } else {
+      const r = Math.max(1, Math.round((Math.sqrt(1 + 4 * sigma * sigma) - 1) / 2)), inv = 1 / (2 * r + 1), acc = new Float32Array(W);
+      for (let pass = 0; pass < 3; pass++) {
+        for (let y = 0; y < H; y++) {
+          const b = y * W; let s = 0;
+          for (let k = 0; k <= r && k < W; k++) s += a[b + k];
+          for (let xx = 0; xx < W; xx++) { t[b + xx] = s * inv; if (xx + r + 1 < W) s += a[b + xx + r + 1]; if (xx >= r) s -= a[b + xx - r]; }
+        }
+        acc.fill(0);
+        for (let k = 0; k <= r && k < H; k++) for (let xx = 0, b = k * W; xx < W; xx++) acc[xx] += t[b + xx];
+        for (let y = 0; y < H; y++) {
+          const b = y * W, ad = (y + r + 1) * W, sb = (y - r) * W;
+          for (let xx = 0; xx < W; xx++) a[b + xx] = acc[xx] * inv;
+          if (y + r + 1 < H) for (let xx = 0; xx < W; xx++) acc[xx] += t[ad + xx];
+          if (y >= r) for (let xx = 0; xx < W; xx++) acc[xx] -= t[sb + xx];
+        }
+      }
     }
     // marching squares: every grid edge the outline crosses is linked to the next one
     const iso = 0.5, links = new Map();
@@ -348,7 +391,7 @@ window.Suite = (() => {
     };
     const seen = new Set(), minArea = (o.minArea || 3) * g * g, tol = (o.tol || 0.25) * g * soft, parts = [];
     // o.scale / o.dx / o.dy: write the curves in another canvas' coordinates
-    const sc = o.scale || 1, fx = v => +((v - B) / u * sc + (o.dx || 0)).toFixed(2), fy = v => +((v - B) / u * sc + (o.dy || 0)).toFixed(2);
+    const sc = o.scale || 1, fx = v => +(((v - B) / u + bx0) * sc + (o.dx || 0)).toFixed(2), fy = v => +(((v - B) / u + by0) * sc + (o.dy || 0)).toFixed(2);
     for (const start of links.keys()) {
       if (seen.has(start)) continue;
       const P = []; let prev = -1, cur = start;
@@ -471,7 +514,7 @@ window.Suite = (() => {
   function mezcla(img, o) {
     const ref = limpiarImagen(img, o), pal = o.palette || [];   // palette + how the cleaned image is cropped
     if (!pal.length) return null;
-    const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height, sN = Math.min(1, 1600 / Math.max(nw, nh));
+    const nw = img.naturalWidth || img.width, nh = img.naturalHeight || img.height, sN = Math.min(1, 1200 / Math.max(nw, nh));
     const w = Math.max(1, Math.round(nw * sN)), h = Math.max(1, Math.round(nh * sN)), c = newCanvas(w, h), x = c.getContext('2d');
     x.imageSmoothingQuality = 'high'; x.drawImage(img, 0, 0, w, h);
     const p = x.getImageData(0, 0, w, h).data, bgI = detectBg(p, w, h), N = w * h;
@@ -502,23 +545,23 @@ window.Suite = (() => {
     }
     return { w, h, nc, iA, iB, tB, al, pal, scale: ref._k / sN, dx: -ref._x0, dy: -ref._y0 };
   }
-  // mask (alpha = coverage) of the palette colours that pass `test`
+  // coverage field of the palette colours that pass `test` (what vectorizar() traces)
   function maskOf(M, test) {
-    const m = newCanvas(M.w, M.h), mx = m.getContext('2d'), id = mx.createImageData(M.w, M.h), q = id.data;
-    const on = new Uint8Array(256); for (let j = 0; j < M.nc; j++) on[j] = test(j) ? 1 : 0;
-    for (let k = 0, N = M.w * M.h; k < N; k++) {
-      const a = M.iA[k]; if (a === 255) continue;
-      const t = M.tB[k], v = M.al[k] * (on[a] * (1 - t) + on[M.iB[k]] * t);
-      if (v > 0) q[k * 4 + 3] = Math.round(v * 255);
+    const N = M.w * M.h, alpha = new Float32Array(N), on = new Uint8Array(256);
+    for (let j = 0; j < M.nc; j++) on[j] = test(j) ? 1 : 0;
+    for (let k = 0; k < N; k++) {
+      const c = M.iA[k]; if (c === 255) continue;
+      const t = M.tB[k];
+      alpha[k] = M.al[k] * (on[c] * (1 - t) + on[M.iB[k]] * t);
     }
-    mx.putImageData(id, 0, 0);
-    return m;
+    return { width: M.w, height: M.h, alpha };
   }
 
   // an image as flat vector layers, ready for an SVG: [{ id, label, fill, d }] in the cleaned image's pixels.
   // 1 / 2 inks: one layer per ink (halftone becomes a 50 % tint). Colours: one layer per colour, stacked
   // from the largest up, each one also covering what goes above it so no hairline gaps show between colours.
   // o.suave (0-100, 50 = normal): how much the edges are calmed
+  const mixCache = new WeakMap();
   function capasVector(img, o) {
     const out = [], tint = (hex, t) => toHex(hexToRgb(hex).map(v => v + (255 - v) * t));
     const s = o.suave == null ? 50 : o.suave, soft = s <= 50 ? 0.5 + s / 100 : 1 + (s - 50) / 50 * 1.6;
@@ -531,7 +574,17 @@ window.Suite = (() => {
       }
       return out;
     }
-    const M = mezcla(img, o);
+    // the colour analysis only depends on the image and its cleaning settings: moving "suavizado"
+    // reuses it and only redraws the curves
+    const key = JSON.stringify([o.mode, o.thr, o.removeBg, o.max, o.min, (o.palette || []).map(c => c.hex + c.role1 + c.role2)]);
+    let hit = mixCache.get(img);
+    if (!hit || hit.key !== key) {
+      const M0 = mezcla(img, o);
+      // (the palette may have just been built: key it as it is now)
+      hit = { key: JSON.stringify([o.mode, o.thr, o.removeBg, o.max, o.min, (o.palette || []).map(c => c.hex + c.role1 + c.role2)]), M: M0 };
+      mixCache.set(img, hit);
+    }
+    const M = hit.M;
     if (!M) return out;
     const trace = test => vectorizar(maskOf(M, test), { soft, scale: M.scale, dx: M.dx, dy: M.dy });
     if (o.mode === 'color') M.pal.forEach((c, k) => {

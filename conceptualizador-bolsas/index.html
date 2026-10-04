@@ -238,6 +238,8 @@
       <div class="row" id="ink2Row"><span>Tinta 2</span><div class="swatches" id="inks2"></div></div>
       <div class="row" id="thrRow"><span>Limpieza</span><input type="range" id="thr" min="0" max="100" value="35"><output id="thrO"></output></div>
       <div class="note" id="thrNote">Si el logo sale con manchas o le falta detalle, mueve “Limpieza”.</div>
+      <div class="row" id="suaveRow"><span>Suavizado</span><input type="range" id="suave" min="0" max="100" value="50"><output id="suaveO"></output></div>
+      <div class="note" id="suaveNote">Bordes del archivo de impresión: súbelo si salen temblorosos; bájalo si se pierden detalles finos.</div>
       <label class="check" id="rmBgRow"><input type="checkbox" id="rmBg" checked> Quitar fondo del logo</label>
       <label class="check" id="invertRow"><input type="checkbox" id="invert"> Invertir (imprimir el fondo en vez del logo)</label>
       <div class="row"><span>Tamaño</span><input type="range" id="size" min="20" max="1000"><output id="sizeO"></output></div>
@@ -539,7 +541,7 @@
     model: null, quadFrac: null, quad: null, H: null, Hinv: null, detail: null,
     logo: null, proc: null,
     x: 500, y: 610, w: 300, rot: 0, opacity: 1, blend: 'source-over', clip: true,
-    mode: 'ink', ink: BLACK, ink2: '#f2a0b8', ink2Auto: true, thr: 35, removeBg: true, invert: false,
+    mode: 'ink', ink: BLACK, ink2: '#f2a0b8', ink2Auto: true, thr: 35, suave: 50, removeBg: true, invert: false,
     palette: null, paletteDirty: true, dims: null,
     clientId: null, clientName: '', designN: null, dirty: false, logoId: null, logoName: '',
     texture: true,
@@ -690,184 +692,22 @@
   }
 
   // ---------- logo processing ----------
-  // Logos arrive any way (PNG, JPG from WhatsApp, screenshots, colour or B/W):
-  // detect the background, remove it, trim margins, then turn it into 1 ink, 2 inks or keep colours.
-  function detectBg(p, w, h) {
-    const px = [];
-    const take = (x, y) => { const i = (y * w + x) * 4; px.push([p[i], p[i + 1], p[i + 2], p[i + 3]]); };
-    const sx = Math.max(1, Math.floor(w / 80)), sy = Math.max(1, Math.floor(h / 80));
-    for (let x = 0; x < w; x += sx) { take(x, 0); take(x, 1); take(x, h - 1); take(x, h - 2); }
-    for (let y = 0; y < h; y += sy) { take(0, y); take(1, y); take(w - 1, y); take(w - 2, y); }
-    const clear = px.filter(c => c[3] < 30).length;
-    if (clear > px.length * 0.4) return { transparent: true };
-    const solid = px.filter(c => c[3] >= 30), med = k => solid.map(c => c[k]).sort((a, b) => a - b)[solid.length >> 1];
-    return { transparent: false, rgb: [med(0), med(1), med(2)] };
-  }
-  const toHex = c => '#' + c.map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
-
-  // ---------- colour separation (what a print shop does by hand) ----------
-  // The logo's main colours are found automatically; each one is then printed as
-  // ink, halftone ("trama") or left as bare paper. Defaults come from contrast with the bag.
-  const d2rgb = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2;
-  const lumRGB = c => (0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]) / 255;
-
-  function extractPalette(p, f, bg) {
-    const pts = [], step = Math.max(1, Math.floor(f.length / 40000));
-    for (let k = 0; k < f.length; k += step) if (f[k] > 0.7) { const i = k * 4; pts.push([p[i], p[i + 1], p[i + 2]]); }
-    if (!pts.length) return [];
-    // farthest-point seeds, then k-means
-    let cs = [pts.reduce((m, c) => lumRGB(c) < lumRGB(m) ? c : m, pts[0])];
-    while (cs.length < 6) {
-      let best = null, bd = 0;
-      for (const c of pts) { const d = Math.min(...cs.map(q => d2rgb(c, q))); if (d > bd) { bd = d; best = c; } }
-      if (!best || bd < 50 * 50) break;
-      cs.push(best);
-    }
-    let counts = [];
-    for (let it = 0; it < 12; it++) {
-      const sums = cs.map(() => [0, 0, 0]); counts = cs.map(() => 0);
-      for (const c of pts) {
-        let bi = 0, bd = Infinity;
-        cs.forEach((q, j) => { const d = d2rgb(c, q); if (d < bd) { bd = d; bi = j; } });
-        sums[bi][0] += c[0]; sums[bi][1] += c[1]; sums[bi][2] += c[2]; counts[bi]++;
-      }
-      cs = cs.map((q, j) => counts[j] ? sums[j].map(v => v / counts[j]) : q);
-    }
-    // merge near-duplicates (JPEG noise, antialiasing) and drop specks
-    let pal = cs.map((rgb, j) => ({ rgb, share: counts[j] / pts.length })).filter(c => c.share > 0);
-    for (let merged = true; merged;) {
-      merged = false;
-      outer: for (let a = 0; a < pal.length; a++) for (let b = a + 1; b < pal.length; b++) {
-        if (d2rgb(pal[a].rgb, pal[b].rgb) < 45 * 45) {
-          const t = pal[a].share + pal[b].share;
-          pal[a] = { rgb: pal[a].rgb.map((v, i) => (v * pal[a].share + pal[b].rgb[i] * pal[b].share) / t), share: t };
-          pal.splice(b, 1); merged = true; break outer;
-        }
-      }
-    }
-    pal = pal.filter(c => c.share >= 0.015).sort((a, b) => b.share - a.share);
-    const segDist = (c, a, b) => {
-      const ab = [0, 1, 2].map(i => b[i] - a[i]), ac = [0, 1, 2].map(i => c[i] - a[i]);
-      const t = clamp((ab[0] * ac[0] + ab[1] * ac[1] + ab[2] * ac[2]) / (d2rgb(a, b) || 1), 0, 1);
-      return Math.sqrt(d2rgb(c, a.map((v, i) => v + ab[i] * t)));
-    };
-    // a "colour" lying between two real ones (or between a real one and the removed background)
-    // is just the soft edge where they meet
-    const anchors = bg ? [...pal, { rgb: bg, share: 1 }] : pal;
-    pal = pal.filter(c => !(c.share < 0.12 && anchors.some(a => a !== c && a.share > c.share &&
-      anchors.some(b => b !== c && b !== a && b.share > c.share && segDist(c.rgb, a.rgb, b.rgb) < 28))));
-    return pal.map(c => ({ rgb: c.rgb, share: c.share, hex: toHex(c.rgb) }));
-  }
-
-  // default roles: split colours into a "dark" and a "light" group (Otsu on luminance);
-  // the group that contrasts with the bag gets ink, the other stays paper
-  function defaultRoles(pal) {
-    if (!pal.length) return;
-    if (pal.length === 1) { pal[0].role1 = 'ink'; pal[0].role2 = 'ink'; return; }
-    const bag = areaColor(), bagL = lumRGB(bag), sorted = [...pal].sort((a, b) => lumRGB(a.rgb) - lumRGB(b.rgb));
-    let bestK = 1, bestV = -1;
-    for (let k = 1; k < sorted.length; k++) {
-      const g1 = sorted.slice(0, k), g2 = sorted.slice(k);
-      const w1 = g1.reduce((s, c) => s + c.share, 0), w2 = g2.reduce((s, c) => s + c.share, 0);
-      const m1 = g1.reduce((s, c) => s + lumRGB(c.rgb) * c.share, 0) / w1, m2 = g2.reduce((s, c) => s + lumRGB(c.rgb) * c.share, 0) / w2;
-      const v = w1 * w2 * (m1 - m2) ** 2;
-      if (v > bestV) { bestV = v; bestK = k; }
-    }
-    const dark = new Set(sorted.slice(0, bestK)), lightBag = bagL >= 0.5;
-    pal.forEach(c => {
-      const inkSide = lightBag ? dark.has(c) : !dark.has(c);
-      c.role1 = inkSide ? 'ink' : 'paper';
-      // 2 inks: the other group also prints if it stands out from the bag
-      c.role2 = inkSide ? 'ink' : d2rgb(c.rgb, bag) > 70 * 70 ? 'ink2' : 'paper';
-    });
-  }
-
+  // Logos arrive any way (PNG, JPG from WhatsApp, screenshots, colour or B/W). Cleaning them
+  // (background off, margins trimmed), finding their colours and separating the inks is the suite's
+  // shared engine (comun/suite.js): colours are taken from the flat areas only, and edge pixels are
+  // treated as blends, so JPG compression does not invent colours or fringes.
+  const { toHex, d2rgb, lumRGB } = Suite;
+  // the logo settings, in the shape the shared engine takes
+  const logoOpts = () => ({
+    mode: S.mode, thr: S.thr, removeBg: S.removeBg, invert: S.invert, ink: S.ink, ink2: S.ink2, ink2Auto: S.ink2Auto,
+    palette: S.palette, paletteDirty: S.paletteDirty, fondo: areaColor(), suave: S.suave,
+  });
   // processLogo() updates the preview; processLogo('ink' | 'ink2' | 'trama') returns that ink
-  // alone as a solid mask with the same size/crop as the preview (used for the print file)
+  // alone as a solid mask with the same size/crop as the preview
   function processLogo(sep) {
     if (!S.logo) { S.proc = null; return null; }
-    let w = S.logo.naturalWidth || 1000, h = S.logo.naturalHeight || 1000;
-    // cap huge images, upscale tiny ones (e.g. small SVGs) so they stay crisp
-    const max = Math.max(w, h), k = max > 1600 ? 1600 / max : max < 600 ? 600 / max : 1;
-    w = Math.round(w * k); h = Math.round(h * k);
-    const c = newCanvas(w, h), x = c.getContext('2d');
-    x.drawImage(S.logo, 0, 0, w, h);
-    const d = x.getImageData(0, 0, w, h), p = d.data, n = w * h;
-
-    // f = how much each pixel belongs to the logo (0 = background, 1 = logo)
-    const bgInfo = detectBg(p, w, h), f = new Float32Array(n);
-    const t = 0.03 + S.thr / 100 * 0.45, soft = 0.06;
-    const step = v => clamp((v - t + soft) / (2 * soft), 0, 1);
-    if (bgInfo.transparent) {
-      for (let k = 0, i = 3; k < n; k++, i += 4) f[k] = p[i] / 255;
-    } else {
-      const [br, bgc, bb] = bgInfo.rgb;
-      for (let k = 0, i = 0; k < n; k++, i += 4) {
-        const a = p[i + 3] / 255;
-        if (S.mode === 'color' && !S.removeBg) { f[k] = a; continue; }
-        const dist = Math.max(Math.abs(p[i] - br), Math.abs(p[i + 1] - bgc), Math.abs(p[i + 2] - bb)) / 255;
-        f[k] = a * step(dist);
-      }
-    }
-
-    // trim empty margins
-    let x0 = w, y0 = h, x1 = -1, y1 = -1;
-    for (let y = 0; y < h; y++) for (let xx = 0; xx < w; xx++) if (f[y * w + xx] > 0.1) {
-      if (xx < x0) x0 = xx; if (xx > x1) x1 = xx; if (y < y0) y0 = y; if (y > y1) y1 = y;
-    }
-    if (x1 < 0) { x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1; }
-
-    if (S.mode !== 'color') {
-      if (S.paletteDirty || !S.palette) {
-        // keep the user's choices for colours that are still there after re-cleaning
-        const old = S.palette || [], pal = extractPalette(p, f, bgInfo.transparent ? null : bgInfo.rgb);
-        defaultRoles(pal);
-        pal.forEach(c => {
-          const prev = old.find(o => d2rgb(o.rgb, c.rgb) < 40 * 40);
-          if (prev && prev.manual) { c.role1 = prev.role1; c.role2 = prev.role2; c.manual = true; }
-        });
-        S.palette = pal; S.paletteDirty = false;
-        const second = pal.find(c => c.role2 === 'ink2');
-        if (second && S.ink2Auto) S.ink2 = second.hex;
-      }
-      const pal = S.palette, roleKey = S.mode === 'ink2' ? 'role2' : 'role1';
-      const ink1 = hexToRgb(S.ink), ink2 = hexToRgb(S.ink2);
-      // halftone dots at 45°, ~50% coverage
-      const period = Math.max(5, Math.round(Math.max(w, h) / 110)), R2 = 0.4;
-      const dot = (xx, y) => {
-        const u = (xx + y) / (period * Math.SQRT2), v = (xx - y) / (period * Math.SQRT2);
-        const du = u - Math.round(u), dv = v - Math.round(v), dist = Math.hypot(du, dv);
-        return clamp((R2 - dist) * period * 0.9 + 0.5, 0, 1);
-      };
-      for (let k = 0, i = 0; k < n; k++, i += 4) {
-        let a = 0, col = ink1;
-        if (f[k] > 0.01 && pal.length) {
-          let bi = 0, bd = Infinity;
-          for (let j = 0; j < pal.length; j++) {
-            const q = pal[j].rgb, dd = (p[i] - q[0]) ** 2 + (p[i + 1] - q[1]) ** 2 + (p[i + 2] - q[2]) ** 2;
-            if (dd < bd) { bd = dd; bi = j; }
-          }
-          const role = pal[bi][roleKey], xx = k % w;
-          if (sep) a = role === sep ? f[k] : 0;
-          else if (role === 'ink') a = f[k];
-          else if (role === 'ink2') { a = f[k]; col = ink2; }
-          else if (role === 'trama') a = f[k] * dot(xx, (k - xx) / w);
-          if (sep === 'ink' && S.mode === 'ink' && S.invert && role === 'trama') a = f[k];
-        }
-        if (S.mode === 'ink' && S.invert && sep !== 'trama') {
-          const xx = k % w, y = (k - xx) / w;
-          a = xx >= x0 && xx <= x1 && y >= y0 && y <= y1 ? 1 - a : 0;
-        } else if (S.mode === 'ink' && S.invert) a = 0;
-        p[i] = col[0]; p[i + 1] = col[1]; p[i + 2] = col[2]; p[i + 3] = Math.round(a * 255);
-      }
-    } else {
-      for (let k = 0, i = 0; k < n; k++, i += 4) p[i + 3] = Math.round(f[k] * 255);
-    }
-
-    const pad = Math.round(Math.max(w, h) * 0.01);
-    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
-    const out = newCanvas(x1 - x0 + 1, y1 - y0 + 1);
-    out.getContext('2d').putImageData(d, -x0, -y0);
+    const o = logoOpts(), out = Suite.limpiarImagen(S.logo, o, sep);
+    S.palette = o.palette; S.paletteDirty = o.paletteDirty; S.ink2 = o.ink2;
     if (!sep) S.proc = out;
     return out;
   }
@@ -1189,6 +1029,8 @@
     $('op').value = Math.round(S.opacity * 100); $('opO').textContent = Math.round(S.opacity * 100) + '%';
     $('mode').value = S.mode;
     $('thr').value = S.thr; $('thrO').textContent = S.thr;
+    $('suave').value = S.suave; $('suaveO').textContent = S.suave;
+    $('suaveRow').classList.toggle('hidden', !ink); $('suaveNote').classList.toggle('hidden', !ink);
     $('inkRow').classList.toggle('hidden', !ink && !S.contact.on);
     $('ink2Row').classList.toggle('hidden', S.mode !== 'ink2');
     $('palRow').classList.toggle('hidden', !ink || !S.palette || S.palette.length < 2);
@@ -1228,7 +1070,7 @@
   // ---------- undo / redo ----------
   // every finished change leaves a snapshot of the design: arrows in the header (phone), Ctrl+Z / Ctrl+Y (PC)
   const hist = []; let hi = -1, histTimer = null, histBusy = false;
-  const STATE_KEYS = ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'removeBg', 'invert', 'texture'];
+  const STATE_KEYS = ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'suave', 'removeBg', 'invert', 'texture'];
   function histSnap() {
     const st = JSON.parse(JSON.stringify(snapshot())), photo = S.model === null ? S.photo : null;
     return {
@@ -1494,6 +1336,7 @@
   $('blend').onchange = e => { S.blend = e.target.value; update(); };
   $('mode').onchange = e => { S.mode = e.target.value; processLogo(); update(); };
   $('thr').oninput = e => { S.thr = +e.target.value; S.paletteDirty = true; processLogo(); update(); };
+  $('suave').oninput = e => { S.suave = +e.target.value; update(); };
   $('rmBg').onchange = e => { S.removeBg = e.target.checked; S.paletteDirty = true; processLogo(); update(); };
   $('invert').onchange = e => { S.invert = e.target.checked; processLogo(); update(); };
   $('texture').onchange = e => { S.texture = e.target.checked; update(); };
@@ -1723,8 +1566,6 @@
     const d = Suite.vectorizar(mask, { px });
     return d ? { d, scale: 1 } : null;
   }
-  // small logos are enlarged to 600 px before cleaning: tell the tracer how big an original pixel is
-  const logoPx = () => { const m = Math.max(S.logo.naturalWidth || 1000, S.logo.naturalHeight || 1000); return m < 600 ? 600 / m : 1; };
 
   const inkName = hex => (INKS.find(([, c]) => c.toLowerCase() === hex.toLowerCase()) || [hex])[0];
   const xmlEsc = t => t.replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[c]);
@@ -1749,8 +1590,9 @@
         const seps = S.mode === 'ink2'
           ? [['ink', 'Tinta_1', S.ink], ['ink2', 'Tinta_2', S.ink2]]
           : [['ink', 'Tinta_1', S.ink], ['trama', 'Tinta_1_TRAMA', S.ink]];
+        const capas = Suite.capasVector(S.logo, logoOpts());   // same ids: Tinta_1, Tinta_2, Tinta_1_TRAMA
         for (const [role, id, hex] of seps) {
-          const t = traceMask(processLogo(role), logoPx());
+          const cv = capas.find(c => c.id === id), t = cv && { d: cv.d, scale: 1 };
           if (!t) continue;
           const isTrama = role === 'trama';
           const label = isTrama ? `Tinta 1 ${inkName(hex)} - TRAMA 50% (aplicar trama al sacar el fotolito)` : `${id.replace('_', ' ')} ${inkName(hex)}`;
@@ -1925,7 +1767,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     return {
       bolsa: m ? { modelo: m.archivo, nombre: m.nombre } : { plantilla: S.template, color: S.bagColor },
       x: S.x, y: S.y, w: S.w, rot: S.rot, opacity: S.opacity, blend: S.blend, clip: S.clip,
-      mode: S.mode, ink: S.ink, ink2: S.ink2, ink2Auto: S.ink2Auto, thr: S.thr, removeBg: S.removeBg,
+      mode: S.mode, ink: S.ink, ink2: S.ink2, ink2Auto: S.ink2Auto, thr: S.thr, suave: S.suave, removeBg: S.removeBg,
       invert: S.invert, texture: S.texture, palette: S.palette, contact: { ...S.contact }, dims: S.dims,
     };
   }
@@ -1951,7 +1793,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
   async function newDesign() {
     Object.assign(S, {
       logo: null, proc: null, logoId: null, logoName: '', palette: null, paletteDirty: true, designN: null, designId: null, designName: '',
-      mode: 'ink', thr: 35, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
+      mode: 'ink', thr: 35, suave: 50, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
       texture: true, clip: true, ink2Auto: true,
     });
     S.contact = { on: false, ig: '', wa: '', web: '', dir: '', mail: '', fb: '', scale: 1, lines: true, y: 0, x: null, rot: 0 };
@@ -1984,11 +1826,12 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     } else { setPhoto(null); S.template = b.plantilla; S.bagColor = b.color; }
     S.dims = st.dims || S.dims;
     if (S.quadFrac) setQuad(S.quadFrac);
+    S.suave = 50;   // designs saved before this setting existed
     S.logo = null; S.logoId = d.logoId || null; S.logoName = d.logoName || '';
     if (d.logoId) {
       try { const rec = await dbDo('logos', 'readonly', s => s.get(d.logoId)); if (rec) S.logo = await imgFrom(rec.src); } catch { }
     }
-    ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'removeBg', 'invert', 'texture']
+    ['x', 'y', 'w', 'rot', 'opacity', 'blend', 'clip', 'mode', 'ink', 'ink2', 'ink2Auto', 'thr', 'suave', 'removeBg', 'invert', 'texture']
       .forEach(k => { if (st[k] !== undefined) S[k] = st[k]; });
     S.contact = { ...S.contact, ...st.contact, rot: st.contact.rot || 0, x: st.contact.x != null ? st.contact.x : null };
     S.palette = st.palette || null; S.paletteDirty = !st.palette;

@@ -863,7 +863,7 @@
     const l = {
       id: newId(), type: 'img', name: file.name, visible: true, img, imgId: null, x: 0, y: 0, w: 400, rot: 0, opacity: 1,
       // photos keep their background; logos on a flat background lose it
-      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 4096, min: logo ? 900 : 600 },
+      o: { mode: 'color', vector: logo, thr: 35, removeBg: logo, invert: false, ink: '#111111', ink2: '#b3262b', ink2Auto: true, palette: null, paletteDirty: true, max: matchMedia('(pointer: coarse)').matches ? 2400 : 3000, min: logo ? 900 : 600 },
     };
     rebuild(l); centerLayer(l); fitLayer(l); addLayer(l);
   }
@@ -935,7 +935,12 @@
     });
   }
   $('mode').onchange = onSel((l, e) => { l.o.mode = e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
-  $('suave').oninput = onSel((l, e) => { l.o.suave = +e.target.value; rebuild(l); update(); });
+  // the slider only changes how the curves are traced: nothing is cleaned again, and the tracing
+  // waits until the slider rests (meanwhile the layer keeps the curves it had)
+  $('suave').oninput = onSel((l, e) => {
+    l.o.suave = +e.target.value; $('suaveO').textContent = e.target.value;
+    clearTimeout(l._vt); l._vt = setTimeout(() => { l.vec = null; ensureVec(l); if (S.layers.includes(l)) update(); }, 350);
+  });
   $('vec').onchange = onSel((l, e) => { l.o.vector = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
   $('thr').oninput = onSel((l, e) => { l.o.thr = +e.target.value; l.o.paletteDirty = true; rebuild(l); update(); });
   $('rmBg').onchange = onSel((l, e) => { l.o.removeBg = e.target.checked; l.o.paletteDirty = true; rebuild(l); update(); });
@@ -1294,7 +1299,7 @@
     }
     // text and contact strips are drawn very large and traced: they travel as curves, no fonts needed
     const big = l.type === 'text' ? renderText(l, 480) : renderContact(l, 200);
-    const d = big && Suite.vectorizar(big, { max: 4800 });
+    const d = big && Suite.vectorizar(big);
     return d ? { w: big.width, h: big.height, paths: [{ fill: l.color, d }], body: `<path fill="${l.color}" fill-rule="evenodd" d="${d}"/>` } : null;
   }
   function buildSVG(mirror) {
