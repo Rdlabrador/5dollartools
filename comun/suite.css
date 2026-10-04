@@ -85,6 +85,10 @@ h2.big { font-size: 24px; text-transform: none; letter-spacing: 0; color: var(--
 .quick b { display: block; font-size: 17px; }
 .quick small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 .quick .qa { margin-left: auto; font-size: 26px; color: var(--brand); }
+.dname { font: inherit; font-size: 16px; font-weight: 700; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: pointer; }
+.dname::after { content: ' ✎'; color: var(--muted); font-weight: 400; font-size: 13px; }
+.vsel { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; margin-top: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); }
+.vdel { align-self: flex-start; margin-top: 4px; }
 #undoBtn, #redoBtn { padding: 4px 11px; font-size: 19px; line-height: 1.1; }
 #toClients { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--brand); color: #111; font-weight: 600; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }

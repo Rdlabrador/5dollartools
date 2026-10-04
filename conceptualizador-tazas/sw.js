@@ -1,7 +1,7 @@
 // Offline support: the app shell is cached so it opens without internet.
 // Network first (so updates arrive as soon as you're online), cache as fallback.
 // Bump VERSION when publishing big changes to drop old caches.
-const VERSION = 'mymugs-v3';
+const VERSION = 'mymugs-v4';
 importScripts('fonts.js');   // self.FUENTES: the typefaces shipped with the app
 const FILES = [
   './', './index.html', './fonts.js', './lib/three.min.js', './manifest.webmanifest',

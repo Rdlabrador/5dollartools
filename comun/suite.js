@@ -565,7 +565,7 @@ window.Suite = (() => {
   //   hooks.deshacer() / hooks.rehacer()   optional: shows the undo / redo arrows; report with app.historial(canUndo, canRedo)
   function shell(cfg) {
     const H = cfg.hooks, db = cfg.db;
-    const app = { cliente: null, n: null, db };
+    const app = { cliente: null, diseno: null, n: null, db };
     document.body.insertAdjacentHTML('afterbegin', `
 <header>
   <button class="btn hidden" id="toClients">‹ Clientes</button>
@@ -625,7 +625,7 @@ window.Suite = (() => {
       $('redoBtn').classList.toggle('hidden', !ed || !H.deshacer);
       $('toClients').textContent = '‹ ' + (app.cliente ? app.cliente.nombre : 'Clientes');
       $('title').textContent = !ed ? cfg.nombre
-        : app.cliente ? (app.n ? `Versión ${app.n}` : 'Nuevo diseño') : 'Prueba rápida';
+        : app.cliente ? (app.diseno ? `${app.diseno.nombre} · v${app.n}` : 'Nuevo diseño') : 'Prueba rápida';
     }
 
     // images are stored once and shared by versions: drop the ones no version uses anymore
@@ -660,7 +660,7 @@ window.Suite = (() => {
         const ds = designs.filter(d => d.clienteId === c.id).sort((a, b) => b.n - a.n);
         const b = document.createElement('button'); b.className = 'ccard';
         b.innerHTML = (ds[0] ? `<img class="thumb" src="${ds[0].thumb}" alt="">` : '<div class="thumb"></div>')
-          + `<div><b>${esc(c.nombre)}</b><div class="meta">${ds.length ? `${ds.length} ${ds.length === 1 ? 'versión' : 'versiones'} · ${fmtDate(c.actualizado)}` : 'Sin diseños aún'}</div></div>`;
+          + `<div><b>${esc(c.nombre)}</b><div class="meta">${ds.length ? (n => `${n} ${n === 1 ? 'diseño' : 'diseños'}`)(new Set(ds.map(groupKey)).size) + ` · ${fmtDate(c.actualizado)}` : 'Sin diseños aún'}</div></div>`;
         b.onclick = () => openClient(c.id);
         box.append(b);
       });
@@ -674,32 +674,56 @@ window.Suite = (() => {
       showView('client');
     }
 
+    // one card per design (named by the user); its saved versions live inside, in a drop-down
+    const groupKey = d => d.disenoId || d.id;
+    const designName = d => d.nombre || d.etiqueta || 'Diseño';
     async function renderVersions() {
       $('clientName').textContent = app.cliente.nombre;
-      const ds = (await designsOf(app.cliente.id)).sort((a, b) => b.n - a.n);
+      const groups = new Map();
+      (await designsOf(app.cliente.id)).forEach(d => { const k = groupKey(d); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
+      const list = [...groups.values()].map(vs => vs.sort((a, b) => b.n - a.n)).sort((a, b) => b[0].fecha - a[0].fecha);
       const box = $('versionList'); box.innerHTML = '';
-      if (!ds.length) { box.innerHTML = '<div class="empty">Todavía no hay diseños para este cliente. Toca “+ Nuevo diseño”.</div>'; return; }
-      ds.forEach(d => {
-        const el = document.createElement('div'); el.className = 'vcard';
-        el.innerHTML = `<img class="thumb" src="${d.thumb}" alt="">
-          <b>Versión ${d.n}</b><div class="meta">${fmtDate(d.fecha)}${d.etiqueta ? ' · ' + esc(d.etiqueta) : ''}</div>
-          ${d.nota ? `<div class="nota">“${esc(d.nota)}”</div>` : ''}
+      if (!list.length) { box.innerHTML = '<div class="empty">Todavía no hay diseños para este cliente. Toca “+ Nuevo diseño”.</div>'; return; }
+      list.forEach(vs => {
+        const name = designName(vs[0]), el = document.createElement('div'); el.className = 'vcard';
+        el.innerHTML = `<img class="thumb" alt=""><button class="dname" title="Toca para cambiar el nombre"></button><div class="meta"></div><div class="nota"></div>
+          <select class="vsel" title="Versiones guardadas de este diseño"></select><button class="link vdel">Eliminar esta versión</button>
           <div class="btns"><button class="btn primary">Abrir</button><button class="btn">Eliminar</button></div>`;
-        const [open, del] = el.querySelectorAll('button');
-        open.onclick = el.querySelector('img').onclick = () => openDesign(d);
-        del.onclick = async () => {
-          if (!confirm(`¿Eliminar la versión ${d.n} de ${app.cliente.nombre}?`)) return;
-          await db.run('disenos', 'readwrite', st => st.delete(d.id));
-          await pruneImages();
+        const img = el.querySelector('img'), title = el.querySelector('.dname'), meta = el.querySelector('.meta'), nota = el.querySelector('.nota');
+        const sel = el.querySelector('.vsel'), vdel = el.querySelector('.vdel'), [open, del] = el.querySelectorAll('.btns button');
+        title.textContent = name;
+        vs.forEach(d => sel.add(new Option(`Versión ${d.n}${d.nota ? ' · ' + d.nota : ''} · ${fmtDate(d.fecha)}`, d.id)));
+        sel.classList.toggle('hidden', vs.length < 2); vdel.classList.toggle('hidden', vs.length < 2);
+        const cur = () => vs.find(d => d.id === sel.value) || vs[0];
+        const show = () => {
+          const d = cur(), et = d.etiqueta;
+          img.src = d.thumb; meta.textContent = `Versión ${d.n}${vs.length > 1 ? ' de ' + vs.length : ''} · ${fmtDate(d.fecha)}${et ? ' · ' + et : ''}`;
+          nota.textContent = d.nota ? `“${d.nota}”` : ''; nota.classList.toggle('hidden', !d.nota);
+        };
+        sel.onchange = show; show();
+        open.onclick = img.onclick = () => openDesign(cur());
+        title.onclick = async () => {
+          const nuevo = (prompt('Nombre de este diseño:', name) || '').trim(); if (!nuevo || nuevo === name) return;
+          await db.run('disenos', 'readwrite', st => vs.forEach(d => st.put({ ...d, nombre: nuevo })));
           renderVersions();
-          toast(`Versión ${d.n} eliminada`);
+        };
+        del.onclick = async () => {
+          if (!confirm(`¿Eliminar “${name}”${vs.length > 1 ? ` con sus ${vs.length} versiones` : ''}? No se puede deshacer.`)) return;
+          await db.run('disenos', 'readwrite', st => vs.forEach(d => st.delete(d.id)));
+          await pruneImages(); renderVersions(); toast(`“${name}” eliminado`);
+        };
+        vdel.onclick = async () => {
+          const d = cur();
+          if (!confirm(`¿Eliminar solo la versión ${d.n} de “${name}”?`)) return;
+          await db.run('disenos', 'readwrite', st => st.delete(d.id));
+          await pruneImages(); renderVersions(); toast(`Versión ${d.n} eliminada`);
         };
         box.append(el);
       });
     }
 
     async function newDesign() {
-      app.n = null;
+      app.n = null; app.diseno = null;
       showView('editor');
       await H.nuevo();
       H.limpio(); updateHeader();
@@ -707,26 +731,37 @@ window.Suite = (() => {
     async function openDesign(d) {
       showView('editor');
       await H.abrir(d);
-      app.n = d.n;
+      app.n = d.n; app.diseno = { id: groupKey(d), nombre: designName(d) };
       H.limpio(); updateHeader();
     }
 
     $('saveVersion').onclick = async () => {
       if (!app.cliente) return;
-      const nota = prompt('¿Qué cambió en esta versión? (opcional)', '');
-      if (nota === null) return;
       try {
         const g = await H.guardar();
-        const n = (await designsOf(app.cliente.id)).reduce((m, d) => Math.max(m, d.n), 0) + 1;
+        // a new design asks for its name; saving it again adds a version inside the same design
+        let nombre, nota = '';
+        if (!app.diseno) {
+          nombre = prompt('Nombre de este diseño (para reconocerlo después):', g.etiqueta || 'Mi diseño');
+          if (nombre === null) return;
+          nombre = nombre.trim() || g.etiqueta || 'Mi diseño';
+        } else {
+          nombre = app.diseno.nombre;
+          nota = prompt(`Nueva versión de “${nombre}”. ¿Qué cambió? (opcional)`, '');
+          if (nota === null) return;
+        }
+        const disenoId = app.diseno ? app.diseno.id : newId();
+        const n = (await designsOf(app.cliente.id)).filter(d => groupKey(d) === disenoId).reduce((m, d) => Math.max(m, d.n), 0) + 1;
         await db.run('disenos', 'readwrite', st => st.put({
-          id: newId(), clienteId: app.cliente.id, n, nota: nota.trim(), fecha: Date.now(), thumb: g.thumb,
+          id: newId(), clienteId: app.cliente.id, disenoId, nombre, n, nota: nota.trim(), fecha: Date.now(), thumb: g.thumb,
           estado: g.estado, imgIds: g.imgIds || [], etiqueta: g.etiqueta || '',
         }));
+        app.diseno = { id: disenoId, nombre };
         const c = (await db.all('clientes')).find(x => x.id === app.cliente.id);
         if (c) { c.actualizado = Date.now(); await db.run('clientes', 'readwrite', st => st.put(c)); }
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
         app.n = n; H.limpio(); updateHeader();
-        toast(`Guardado como versión ${n} de ${app.cliente.nombre}`);
+        toast(`Guardado: ${nombre} · versión ${n}`);
       } catch (err) { alert('No se pudo guardar: ' + err.message); }
     };
 

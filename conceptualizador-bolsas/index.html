@@ -101,6 +101,10 @@
   .quick b { display: block; font-size: 17px; }
   .quick small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
   .quick .qa { margin-left: auto; font-size: 26px; color: var(--brand); }
+  .dname { font: inherit; font-size: 16px; font-weight: 700; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: pointer; }
+  .dname::after { content: ' ✎'; color: var(--muted); font-weight: 400; font-size: 13px; }
+  .vsel { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; margin-top: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); }
+  .vdel { align-self: flex-start; margin-top: 4px; }
   #undoBtn, #redoBtn { padding: 4px 11px; font-size: 19px; line-height: 1.1; }
   #toClients { max-width: 45vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .toast { position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--brand); color: #111; font-weight: 600; padding: 10px 16px; border-radius: 10px; font-size: 14px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; }
@@ -1816,7 +1820,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     $('undoBtn').classList.toggle('hidden', !ed); $('redoBtn').classList.toggle('hidden', !ed);
     $('toClients').textContent = '‹ ' + (S.clientId ? S.clientName : 'Clientes');
     $('title').textContent = !ed ? 'MyBags'
-      : S.clientId ? (S.designN ? `Versión ${S.designN}` : 'Nuevo diseño') : 'Prueba rápida';
+      : S.clientId ? (S.designN ? `${S.designName} · v${S.designN}` : 'Nuevo diseño') : 'Prueba rápida';
   }
 
   // logos are stored once and shared by versions: drop the ones no version uses anymore
@@ -1851,7 +1855,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       const ds = designs.filter(d => d.clienteId === c.id).sort((a, b) => b.n - a.n);
       const b = document.createElement('button'); b.className = 'ccard';
       b.innerHTML = (ds[0] ? `<img class="thumb" src="${ds[0].thumb}" alt="">` : '<div class="thumb"></div>')
-        + `<div><b>${esc(c.nombre)}</b><div class="meta">${ds.length ? `${ds.length} ${ds.length === 1 ? 'versión' : 'versiones'} · ${fmtDate(c.actualizado)}` : 'Sin diseños aún'}</div></div>`;
+        + `<div><b>${esc(c.nombre)}</b><div class="meta">${ds.length ? (n => `${n} ${n === 1 ? 'diseño' : 'diseños'}`)(new Set(ds.map(groupKey)).size) + ` · ${fmtDate(c.actualizado)}` : 'Sin diseños aún'}</div></div>`;
       b.onclick = () => openClient(c.id);
       box.append(b);
     });
@@ -1865,25 +1869,49 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     showView('client');
   }
 
+  // one card per design (named by the user); its saved versions live inside, in a drop-down
+  const groupKey = d => d.disenoId || d.id;
+  const designName = d => d.nombre || bagName(d) || 'Diseño';
   async function renderVersions() {
     $('clientName').textContent = S.clientName;
-    const ds = (await designsOf(S.clientId)).sort((a, b) => b.n - a.n);
+    const groups = new Map();
+    (await designsOf(S.clientId)).forEach(d => { const k = groupKey(d); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
+    const list = [...groups.values()].map(vs => vs.sort((a, b) => b.n - a.n)).sort((a, b) => b[0].fecha - a[0].fecha);
     const box = $('versionList'); box.innerHTML = '';
-    if (!ds.length) { box.innerHTML = '<div class="empty">Todavía no hay diseños para este cliente. Toca “+ Nuevo diseño”.</div>'; return; }
-    ds.forEach(d => {
-      const el = document.createElement('div'); el.className = 'vcard';
-      el.innerHTML = `<img class="thumb" src="${d.thumb}" alt="">
-        <b>Versión ${d.n}</b><div class="meta">${fmtDate(d.fecha)} · ${esc(bagName(d))}</div>
-        ${d.nota ? `<div class="nota">“${esc(d.nota)}”</div>` : ''}
+    if (!list.length) { box.innerHTML = '<div class="empty">Todavía no hay diseños para este cliente. Toca “+ Nuevo diseño”.</div>'; return; }
+    list.forEach(vs => {
+      const name = designName(vs[0]), el = document.createElement('div'); el.className = 'vcard';
+      el.innerHTML = `<img class="thumb" alt=""><button class="dname" title="Toca para cambiar el nombre"></button><div class="meta"></div><div class="nota"></div>
+        <select class="vsel" title="Versiones guardadas de este diseño"></select><button class="link vdel">Eliminar esta versión</button>
         <div class="btns"><button class="btn primary">Abrir</button><button class="btn">Eliminar</button></div>`;
-      const [open, del] = el.querySelectorAll('button');
-      open.onclick = el.querySelector('img').onclick = () => openDesign(d);
-      del.onclick = async () => {
-        if (!confirm(`¿Eliminar la versión ${d.n} de ${S.clientName}?`)) return;
-        await dbDo('disenos', 'readwrite', st => st.delete(d.id));
-        await pruneLogos();
+      const img = el.querySelector('img'), title = el.querySelector('.dname'), meta = el.querySelector('.meta'), nota = el.querySelector('.nota');
+      const sel = el.querySelector('.vsel'), vdel = el.querySelector('.vdel'), [open, del] = el.querySelectorAll('.btns button');
+      title.textContent = name;
+      vs.forEach(d => sel.add(new Option(`Versión ${d.n}${d.nota ? ' · ' + d.nota : ''} · ${fmtDate(d.fecha)}`, d.id)));
+      sel.classList.toggle('hidden', vs.length < 2); vdel.classList.toggle('hidden', vs.length < 2);
+      const cur = () => vs.find(d => d.id === sel.value) || vs[0];
+      const show = () => {
+        const d = cur(), et = bagName(d);
+        img.src = d.thumb; meta.textContent = `Versión ${d.n}${vs.length > 1 ? ' de ' + vs.length : ''} · ${fmtDate(d.fecha)}${et ? ' · ' + et : ''}`;
+        nota.textContent = d.nota ? `“${d.nota}”` : ''; nota.classList.toggle('hidden', !d.nota);
+      };
+      sel.onchange = show; show();
+      open.onclick = img.onclick = () => openDesign(cur());
+      title.onclick = async () => {
+        const nuevo = (prompt('Nombre de este diseño:', name) || '').trim(); if (!nuevo || nuevo === name) return;
+        await dbDo('disenos', 'readwrite', st => vs.forEach(d => st.put({ ...d, nombre: nuevo })));
         renderVersions();
-        toast(`Versión ${d.n} eliminada`);
+      };
+      del.onclick = async () => {
+        if (!confirm(`¿Eliminar “${name}”${vs.length > 1 ? ` con sus ${vs.length} versiones` : ''}? No se puede deshacer.`)) return;
+        await dbDo('disenos', 'readwrite', st => vs.forEach(d => st.delete(d.id)));
+        await pruneLogos(); renderVersions(); toast(`“${name}” eliminado`);
+      };
+      vdel.onclick = async () => {
+        const d = cur();
+        if (!confirm(`¿Eliminar solo la versión ${d.n} de “${name}”?`)) return;
+        await dbDo('disenos', 'readwrite', st => st.delete(d.id));
+        await pruneLogos(); renderVersions(); toast(`Versión ${d.n} eliminada`);
       };
       box.append(el);
     });
@@ -1920,7 +1948,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
 
   async function newDesign() {
     Object.assign(S, {
-      logo: null, proc: null, logoId: null, logoName: '', palette: null, paletteDirty: true, designN: null,
+      logo: null, proc: null, logoId: null, logoName: '', palette: null, paletteDirty: true, designN: null, designId: null, designName: '',
       mode: 'ink', thr: 35, removeBg: true, invert: false, rot: 0, opacity: 1, blend: 'source-over',
       texture: true, clip: true, ink2Auto: true,
     });
@@ -1963,7 +1991,7 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
     S.contact = { ...S.contact, ...st.contact, rot: st.contact.rot || 0, x: st.contact.x != null ? st.contact.x : null };
     S.palette = st.palette || null; S.paletteDirty = !st.palette;
     processLogo();
-    S.designN = d.n;
+    S.designN = d.n; S.designId = groupKey(d); S.designName = designName(d);
     syncForm(); update(); S.dirty = false; updateHeader(); histReset();
   }
 
@@ -1973,23 +2001,34 @@ ${groups.map(g => `<g id="${g.id}" fill="${g.fill}"><desc>${xmlEsc(g.label)}</de
       alert('Esta foto de bolsa no está guardada. Agrégala con “+ Agregar bolsa” y luego guarda la versión.');
       return;
     }
-    const nota = prompt('¿Qué cambió en esta versión? (opcional)', '');
-    if (nota === null) return;
+    // a new design asks for its name; saving it again adds a version inside the same design
+    let nombre, nota = '';
+    const sugerido = S.model !== null ? MODELOS[S.model].nombre : (TEMPLATES[S.template] || {}).name || 'Mi diseño';
+    if (!S.designId) {
+      nombre = prompt('Nombre de este diseño (para reconocerlo después):', sugerido);
+      if (nombre === null) return;
+      nombre = nombre.trim() || sugerido;
+    } else {
+      nombre = S.designName;
+      nota = prompt(`Nueva versión de “${nombre}”. ¿Qué cambió? (opcional)`, '');
+      if (nota === null) return;
+    }
     try {
       if (S.logo && !S.logoId) {
         S.logoId = newId();
         await dbDo('logos', 'readwrite', st => st.put({ id: S.logoId, src: S.logo.src, nombre: S.logoName }));
       }
-      const n = (await designsOf(S.clientId)).reduce((m, d) => Math.max(m, d.n), 0) + 1;
+      const disenoId = S.designId || newId();
+      const n = (await designsOf(S.clientId)).filter(d => groupKey(d) === disenoId).reduce((m, d) => Math.max(m, d.n), 0) + 1;
       await dbDo('disenos', 'readwrite', st => st.put({
-        id: newId(), clienteId: S.clientId, n, nota: nota.trim(), fecha: Date.now(), thumb: thumbnail(),
+        id: newId(), clienteId: S.clientId, disenoId, nombre, n, nota: nota.trim(), fecha: Date.now(), thumb: thumbnail(),
         estado: snapshot(), logoId: S.logo ? S.logoId : null, logoName: S.logoName || '',
       }));
       const c = (await getAll('clientes')).find(x => x.id === S.clientId);
       if (c) { c.actualizado = Date.now(); await dbDo('clientes', 'readwrite', st => st.put(c)); }
       if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => { });
-      S.dirty = false; S.designN = n; updateHeader();
-      toast(`Guardado como versión ${n} de ${S.clientName}`);
+      S.dirty = false; S.designN = n; S.designId = disenoId; S.designName = nombre; updateHeader();
+      toast(`Guardado: ${nombre} · versión ${n}`);
     } catch (err) { alert('No se pudo guardar: ' + err.message); }
   };
 
