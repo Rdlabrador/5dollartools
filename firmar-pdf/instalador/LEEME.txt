@@ -1,0 +1,9 @@
+Instalador de PepePDF (Inno Setup 6)
+
+Para crearlo: doble clic en crear-instalador.bat. Compila el programa y deja
+el resultado en ..\descargar\PepePDF-Setup.exe.
+Requiere Inno Setup 6 (en %LOCALAPPDATA%\Programs\Inno Setup 6) y el SDK de .NET 8.
+
+Instala sin permisos de administrador en %LOCALAPPDATA%\Programs\PepePDF.
+Al desinstalar NO se borra %LOCALAPPDATA%\FirmarPDF (firmas guardadas).
+Para cambiar la version: editar AppVersion en PepePDF.iss.

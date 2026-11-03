@@ -4,7 +4,7 @@ import { E } from './estado.js';
 import { $, toast, elegir, cargarImagen, deBase64 } from './util.js';
 import { alMensaje, puente } from './puente.js';
 import { iniciarColocar } from './elementos.js';
-import { abrirMovil } from './firmar.js';
+import { abrirMovil, movilRecibido } from './firmar.js';
 import { cambiarDocumento } from './documento.js';
 import { incrustar } from './paginas.js';
 import { pdfViewer } from './visor.js';
@@ -97,9 +97,8 @@ async function alLlegar(imagenes) {
 }
 
 alMensaje('fotosMovil', (m) => {
-  if ($('dlgMovil').classList.contains('hidden')) return;
-  $('dlgMovil').classList.add('hidden');
   const lista = Array.isArray(m.imagenes) ? m.imagenes.filter((x) => typeof x === 'string') : [];
-  if (!lista.length) { toast(t('fotomovil.noLlegaron'), true, 5000); return; }
-  alLlegar(lista);
+  if (!lista.length) { $('dlgMovil').classList.add('hidden'); if (!E.pdf) return; toast(t('fotomovil.noLlegaron'), true, 5000); return; }
+  const vista = lista.map((src, i) => { const im = document.createElement('img'); im.src = src; im.alt = t('firmar.fotoAlt', { n: i + 1 }); return im; });
+  movilRecibido({ titulo: tn('firmar.fotosRecibidas', lista.length), vista, clase: 'fotos', alListo: () => alLlegar(lista) });
 });

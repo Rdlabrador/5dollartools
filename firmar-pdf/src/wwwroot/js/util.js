@@ -81,8 +81,9 @@ export function descargar(bytes, nombre, mime = 'application/pdf') {
 }
 
 // casilla (opcional): {texto, marcada}; al cerrar, casilla.marcada queda con lo que dejó el usuario.
-export function confirmar(titulo, msg, si = t('util.aceptar'), no = t('util.cancelar'), casilla = null) {
+export function confirmar(titulo, msg, si = t('util.aceptar'), no = t('util.cancelar'), casilla = null, peligro = false) {
   return new Promise((ok) => {
+    $('confSi').classList.toggle('peligro', !!peligro); // peligro: botón de confirmar en rojo
     $('confTitulo').textContent = titulo; $('confMsg').textContent = msg;
     $('confSi').textContent = si; $('confNo').textContent = no;
     const cb = $('confCasilla');

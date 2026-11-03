@@ -1,5 +1,7 @@
 // Estado compartido de la interfaz (un solo objeto mutable) y un bus de eventos simple.
-export const CLAVE_FIRMA = 'firmarpdf.firma';
+export const CLAVE_FIRMA = 'firmarpdf.firma'; // antigua (una sola firma); solo para migrar
+export const CLAVE_FIRMAS = 'firmarpdf.firmas';
+export const MAX_FIRMAS = 10;
 export const ANCHO_FIRMA_PT = 5 / 2.54 * 72; // 5 cm
 export const CSS_POR_PT = 96 / 72;
 

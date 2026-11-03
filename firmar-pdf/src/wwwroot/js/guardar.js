@@ -59,7 +59,13 @@ export async function construirPdf(final, base) {
     const pg = lista[it.pagina - 1]; if (!pg) continue;
     const pp = await obtenerPagina(it.pagina);
     const V = pp.getViewport({ scale: 1 });
-    const giro = PDFLib.degrees(((Math.round(pp.rotate) % 360) + 360) % 360); // sumar la rotación de la página
+    // Giro del elemento (it.rot, grados hacia la derecha tal como se ve; solo firma, imagen y texto) más el de la página (/Rotate).
+    // pdf-lib gira hacia la izquierda alrededor de la esquina inferior izquierda: se calcula dónde cae ese punto con el giro hecho
+    // alrededor del centro, y el ángulo es (giro de página - giro del elemento).
+    const rot = (it.tipo === 'firma' || it.tipo === 'imagen' || it.tipo === 'texto') ? (it.rot || 0) : 0;
+    const giro = PDFLib.degrees((((Math.round(pp.rotate) - rot) % 360) + 360) % 360);
+    const rc = Math.cos(rot * Math.PI / 180), rs = Math.sin(rot * Math.PI / 180);
+    const girado = (w, h, lx, ly) => { const dx = lx - w / 2, dy = ly - h / 2; return [it.x + w / 2 + dx * rc - dy * rs, it.y + h / 2 + dx * rs + dy * rc]; }; // punto (lx,ly) de la caja, ya girado
     if (it.tipo === 'firma' || it.tipo === 'imagen') {
       const fuenteImg = it.png || it.src;
       let img = imagenes.get(fuenteImg);
@@ -68,15 +74,17 @@ export async function construirPdf(final, base) {
         img = bin[0] === 0xFF && bin[1] === 0xD8 ? await doc.embedJpg(bin) : await doc.embedPng(bin); // fotos del celular: JPEG; firmas: PNG
         imagenes.set(fuenteImg, img);
       }
-      const [x, y] = V.convertToPdfPoint(it.x, it.y + it.h);
+      const [x, y] = V.convertToPdfPoint(...girado(it.w, it.h, 0, it.h));
       pg.drawImage(img, { x, y, width: it.w, height: it.h, rotate: giro });
     } else if (it.tipo !== 'texto') {
       dibujarAnotacion(doc, pg, V, it); // resaltar, subrayar, tachar, trazo, rectángulo, flecha, nota
     } else {
       const lineas = it.texto.split('\n');
+      // caja del texto como se ve en pantalla (línea de 1 × tamaño de alto): su centro es el del giro
+      const ancho = Math.max(1.5 * it.size, ...lineas.map((l) => fuente.widthOfTextAtSize(seguro(l), it.size))), alto = lineas.length * it.size;
       for (let i = 0; i < lineas.length; i++) {
         if (!lineas[i].trim()) continue;
-        const [x, y] = V.convertToPdfPoint(it.x, it.y + it.size * (0.85 + i));
+        const [x, y] = V.convertToPdfPoint(...girado(ancho, alto, 0, it.size * (0.85 + i)));
         pg.drawText(seguro(lineas[i]), { x, y, size: it.size, font: fuente, color: PDFLib.rgb(0, 0, 0), rotate: giro });
       }
     }

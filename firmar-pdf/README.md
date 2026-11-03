@@ -1,8 +1,12 @@
 # PepePDF
 
 Programa para Windows que permite abrir un PDF, llenarlo, firmarlo, anotarlo, cambiarle las páginas y guardarlo.
-Funciona sin instalar nada y sin internet. Es un solo archivo: `PepePDF.exe`.
-Está en español e inglés.
+Funciona sin internet. Está en español e inglés.
+
+**Descargar el instalador:** https://github.com/Rdlabrador/5dollartools/raw/main/firmar-pdf/descargar/PepePDF-Setup.exe
+(No pide permisos de administrador. Crea el acceso directo del escritorio y del menú Inicio, y agrega PepePDF a "Abrir con" para los PDF.
+Para desinstalarlo: Configuración → Aplicaciones → PepePDF. Las firmas guardadas no se borran.)
+Para rearmar el instalador después de cambiar el código: `instalador\crear-instalador.bat`.
 
 Parte de la suite 5dollartools. Se distribuye como programa, no está en la web.
 
@@ -12,8 +16,8 @@ Parte de la suite 5dollartools. Se distribuye como programa, no está en la web.
 
 ## Antes de empezar
 
-1. Abra el archivo `PepePDF.exe` con doble clic. Si ya tiene el acceso directo del escritorio, use ese: se llama **PepePDF**.
-2. Si Windows muestra una advertencia azul, pulse "Más información" y luego "Ejecutar de todas formas".
+1. Instale el programa con `PepePDF-Setup.exe` (doble clic y siga los pasos). Después ábralo con el acceso directo **PepePDF** del escritorio o del menú Inicio.
+2. Si Windows muestra una advertencia azul al instalar, pulse "Más información" y luego "Ejecutar de todas formas".
 3. Si el programa dice que falta el componente **WebView2**, pulse el enlace que aparece.
    Instálelo y vuelva a abrir el programa. En Windows 10 y 11 al día, normalmente ya está.
 

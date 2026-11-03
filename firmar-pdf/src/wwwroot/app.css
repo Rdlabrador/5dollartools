@@ -108,8 +108,8 @@ body:not([data-estado="vacio"]) #inicio { display: none; }
 .btn.opcion.sinic small { grid-column: 1; }
 /* opción recomendada de "¿Cómo quiere firmar?": borde de acento + etiqueta (la firma guardada si existe; si no, el mouse) */
 .btn.opcion .rec { display: none; position: absolute; right: 12px; top: -13px; background: var(--accent); color: #fff; font-size: 16px; font-weight: 700; padding: 2px 12px; border-radius: 999px; }
-#fGuardada:not(.hidden), #fGuardada.hidden ~ #fMouse { border-color: var(--accent); border-width: 2.5px; }
-#fGuardada:not(.hidden) .rec, #fGuardada.hidden ~ #fMouse .rec { display: inline-block; }
+#listaFirmas:empty ~ #fMouse { border-color: var(--accent); border-width: 2.5px; }
+#listaFirmas:empty ~ #fMouse .rec { display: inline-block; }
 .pie { display: flex; gap: 12px; justify-content: flex-end; margin-top: 6px; }
 .nota { font-size: 16px; font-style: normal; color: var(--muted); }
 .fila { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -122,6 +122,22 @@ body:not([data-estado="vacio"]) #inicio { display: none; }
 .movil-cuerpo { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; justify-content: center; }
 .qr-caja { background: #fff; border-radius: var(--radio); box-shadow: var(--sombra-1), 0 0 0 1px var(--line); padding: 12px; width: 280px; height: 280px; display: grid; place-items: center; color: var(--text); text-align: center; }
 .qr-caja img { width: 100%; height: 100%; image-rendering: pixelated; }
+.ayuda-red { color: var(--text); font-weight: 600; font-size: 18px; }
+.movil-estado { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; padding: 8px 0; }
+.movil-check { width: 76px; height: 76px; border-radius: 50%; background: var(--exito); display: grid; place-items: center; }
+.movil-titulo { font-size: 26px; font-weight: 700; }
+.movil-sub { font-size: 22px; color: var(--muted); }
+.espera-puntos { display: flex; gap: 10px; height: 16px; }
+.espera-puntos i { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); animation: puntos 1.2s ease-in-out infinite; }
+.espera-puntos i:nth-child(2) { animation-delay: .2s; }
+.espera-puntos i:nth-child(3) { animation-delay: .4s; }
+@keyframes puntos { 0%, 80%, 100% { opacity: .25; transform: scale(.8); } 40% { opacity: 1; transform: scale(1.1); } }
+.movil-vista.hidden { display: none; }
+.movil-vista { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; max-width: 100%; }
+.movil-vista.firma { background: #fff; border-radius: var(--radio); border: 1.5px solid var(--line); padding: 16px; width: 100%; }
+.movil-vista.firma img { max-width: 100%; max-height: 180px; }
+.movil-vista.fotos img { height: 110px; max-width: 160px; object-fit: cover; border-radius: 8px; border: 1.5px solid var(--line); background: #fff; }
+@media (prefers-reduced-motion: reduce) { .espera-puntos i { animation: none; opacity: .7; } }
 .pasos { font-size: 22px; line-height: 1.6; padding-left: 28px; margin: 0; flex: 1; min-width: 240px; }
 .campo { font: inherit; font-size: 22px; padding: 12px 14px; border-radius: var(--radio); border: 1.5px solid var(--borde); background: #fff; color: var(--text); width: 100%; }
 .campo:focus { outline: 3px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
@@ -152,6 +168,23 @@ body:not([data-estado="vacio"]) #inicio { display: none; }
 .it.texto .t { display: block; min-width: 1.5em; color: #000; font-family: Helvetica, Arial, sans-serif; line-height: 1; white-space: pre; outline: none; cursor: text; user-select: text; padding: 0; }
 .it.texto { outline: 1px dashed rgba(31, 36, 48, .4); }
 .it.texto.sel { outline: 3px solid var(--accent); }
+.giro { position: relative; transform-origin: 50% 50%; }
+.it.firma > .giro, .it.imagen > .giro { width: 100%; height: 100%; }
+/* el contorno va en la caja que gira, no en la que no gira */
+.it.firma, .it.imagen, .it.texto, .it.firma:hover, .it.imagen:hover, .it.texto:hover, .it.firma.sel, .it.imagen.sel, .it.texto.sel, .it.firma.sel:hover, .it.imagen.sel:hover, .it.texto.sel:hover { outline: none; }
+.it.firma:hover > .giro, .it.imagen:hover > .giro { outline: 1px dashed rgba(29, 78, 216, .8); }
+.it.texto > .giro { outline: 1px dashed rgba(31, 36, 48, .4); }
+.it.sel > .giro, .it.sel:hover > .giro { outline: 3px solid var(--accent); }
+.rot { position: absolute; left: 50%; top: -48px; width: 38px; height: 38px; margin-left: -19px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: var(--sombra-1); color: #000; cursor: grab; display: none; place-items: center; touch-action: none; z-index: 4; box-sizing: border-box; }
+.rot::after { content: ''; position: absolute; left: 50%; top: 100%; width: 3px; height: 10px; margin-left: -1.5px; background: var(--accent); }
+.it.sel .rot { display: grid; }
+.colwrap { position: relative; display: flex; }
+.ctl button.txt { font-size: 16px; padding: 0 12px; }
+.colmenu { display: none; position: absolute; top: calc(100% + 10px); left: 0; flex-direction: column; gap: 6px; background: var(--panel); border-radius: 10px; box-shadow: var(--sombra-2), 0 0 0 2px var(--accent); padding: 6px; z-index: 6; }
+.ctl.abajo .colmenu { top: auto; bottom: calc(100% + 10px); }
+.colwrap.abierto .colmenu { display: flex; }
+.ctl .colmenu button.opcol { height: 48px; min-width: 130px; justify-content: flex-start; gap: 10px; padding: 0 14px; font-size: 17px; }
+.mues { display: inline-block; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #888; flex: none; }
 .ctl { position: absolute; right: -2px; top: -60px; display: none; gap: 6px; background: var(--panel); border-radius: 10px; box-shadow: var(--sombra-2), 0 0 0 2px var(--accent); padding: 4px; z-index: 5; font-size: 16px; }
 .it.sel .ctl { display: flex; }
 .it.sel .ctl.abajo { top: auto; bottom: -60px; }
@@ -272,3 +305,40 @@ body.ocultando .pdfViewer .page .textLayer { user-select: none; -webkit-user-sel
 /* selector de idioma y número de página (en la barra flotante) */
 #bIdioma { padding: 8px 14px; }
 #flotante #paginaTxt { white-space: nowrap; }
+
+/* firmas guardadas */
+.btn.primary.peligro { background: var(--peligro); border-color: var(--peligro); }
+.btn.primary.peligro:hover { background: #8F1B12; border-color: #8F1B12; }
+.lista-firmas { display: flex; flex-direction: column; gap: 16px; padding: 14px 4px 4px; max-height: max(200px, calc(100vh - 480px)); overflow-y: auto; flex-shrink: 0; }
+.lista-firmas:empty { display: none; }
+.firma-tarjeta { position: relative; display: flex; gap: 14px; align-items: center; border: 1.5px solid var(--borde); border-radius: var(--radio); padding: 10px; background: var(--panel); cursor: pointer; }
+.firma-tarjeta:hover { border-color: #9AA1AF; }
+.firma-tarjeta.rec-on { border-color: var(--accent); border-width: 2.5px; }
+.firma-tarjeta .rec { position: absolute; right: 12px; top: -13px; background: var(--accent); color: #fff; font-size: 16px; font-weight: 700; padding: 2px 12px; border-radius: 999px; }
+.firma-tarjeta .img { flex: 0 0 150px; height: 84px; background: #fff; border: 1px solid var(--borde); border-radius: 8px; display: grid; place-items: center; padding: 4px 8px; }
+.firma-tarjeta .img img { max-width: 100%; max-height: 100%; display: block; }
+.firma-tarjeta .datos { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.firma-tarjeta .nom { display: flex; align-items: center; gap: 6px; font-size: 18px; font-weight: 700; min-width: 0; }
+.firma-tarjeta .nom span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.firma-tarjeta .acc { display: flex; gap: 8px; }
+.firma-tarjeta .acc .usar { flex: 1; }
+.btn.icono { min-width: 48px; padding: 6px; display: inline-grid; place-items: center; }
+.btn.icono.peligro { color: var(--peligro); border-color: var(--peligro); }
+.btn.icono.peligro:hover { background: rgba(180, 35, 24, .08); border-color: var(--peligro); }
+.firma-previa { background: #fff; border: 1px solid var(--borde); border-radius: var(--radio); height: 130px; display: grid; place-items: center; padding: 8px; }
+.firma-previa img { max-width: 100%; max-height: 100%; }
+#gfEtiqueta { font-size: 18px; color: var(--muted); }
+
+/* zoom en la barra superior */
+#grupoZoom { display: flex; align-items: center; gap: 2px; }
+#grupoZoom .btn { padding: 8px 12px; min-width: 48px; justify-content: center; }
+#grupoZoom .info { min-width: 3.4em; font-size: 18px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
+/* pantallas medianas: Abrir, Guardar e Imprimir conservan su nombre; el resto queda solo con ícono */
+@media (max-width: 1499px) {
+  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar):not(#bImprimir) .tx { display: none; }
+  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar):not(#bImprimir):not(#grupoZoom .btn) { padding: 8px 12px; min-width: 48px; }
+}
+@media (max-width: 1299px) {
+  #barra #bAbrir .tx, #barra #bGuardar .tx, #barra #bImprimir .tx { display: none; }
+  #barra #bAbrir, #barra #bGuardar, #barra #bImprimir { padding: 8px 12px; min-width: 48px; }
+}

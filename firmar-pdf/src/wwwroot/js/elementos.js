@@ -1,6 +1,6 @@
 // Elementos colocados sobre las páginas (firmas y textos) y el modo "colocar".
 import { E, on, ANCHO_FIRMA_PT } from './estado.js';
-import { $, fechaHoy } from './util.js';
+import { $, fechaHoy, cargarImagen } from './util.js';
 import { ICONOS, icono as svgIcono } from './iconos.js';
 import { vistaPagina, escalaPx, renderAviso } from './visor.js';
 import { commit } from './historial.js';
@@ -16,6 +16,8 @@ agregar({
     'elementos.clicImagen': 'Haga clic donde quiere la foto',
     'elementos.clicImagenN': 'Foto {i} de {n}: haga clic donde la quiere',
     'elementos.texto': 'Texto',
+    'elementos.girarIzq': 'Girar a la izquierda', 'elementos.girarDer': 'Girar a la derecha', 'elementos.girarManija': 'Arrastre para girar',
+    'elementos.color': 'Color', 'elementos.colorTit': 'Cambiar el color de la firma', 'elementos.azul': 'Azul', 'elementos.negro': 'Negro',
   },
   en: {
     'elementos.cambiarTam': 'Drag to resize',
@@ -26,6 +28,8 @@ agregar({
     'elementos.clicImagen': 'Click where you want the photo',
     'elementos.clicImagenN': 'Photo {i} of {n}: click where you want it',
     'elementos.texto': 'Text',
+    'elementos.girarIzq': 'Rotate left', 'elementos.girarDer': 'Rotate right', 'elementos.girarManija': 'Drag to rotate',
+    'elementos.color': 'Color', 'elementos.colorTit': 'Change the signature color', 'elementos.azul': 'Blue', 'elementos.negro': 'Black',
   },
 });
 
@@ -49,7 +53,8 @@ export function sincronizar() {
     if (pv.pdfPage) E.paginas[it.pagina] = pv.pdfPage;
     const capa = capaDe(pv);
     let el = E.els.get(it.id);
-    if (!el) { el = crearElemento(it); E.els.set(it.id, el); }
+    if (el && el._it !== it && !tipos[it.tipo]) { el.remove(); E.els.delete(it.id); el = null; } // deshacer/rehacer trae copias nuevas: el elemento se rehace para que use la actual
+    if (!el) { el = crearElemento(it); el._it = it; E.els.set(it.id, el); }
     if (el.parentNode !== capa) capa.appendChild(el);
     estilar(el, it, pv.viewport.scale);
   }
@@ -59,6 +64,7 @@ on('sincronizar', sincronizar);
 // al cambiar el idioma se vuelven a escribir los títulos de los botones ya creados
 on('idioma', () => {
   for (const b of document.querySelectorAll('.capa-fp [data-tk]')) { const x = t(b.dataset.tk); b.title = x; if (b.tagName === 'BUTTON') b.setAttribute('aria-label', x); }
+  for (const b of document.querySelectorAll('.capa-fp [data-tx]')) b.textContent = t(b.dataset.tx);
 });
 on('programarSync', programarSync);
 
@@ -71,6 +77,24 @@ function estilar(el, it, k) {
     const t = el.querySelector('.t'); t.style.fontSize = it.size * k + 'px';
     if (t.textContent !== it.texto && document.activeElement !== t) t.textContent = it.texto;
   }
+  el._giro.style.transform = it.rot ? `rotate(${it.rot}deg)` : ''; // gira alrededor del centro
+  ubicarCtl(el, it);
+}
+// La barra de botones no gira con el elemento: se coloca arriba (o abajo) de la caja que ocupa ya girado, sin tapar la manija.
+function ubicarCtl(el, it) {
+  const ctl = el.querySelector(':scope > .ctl'); if (!ctl) return;
+  const pv = vistaPagina(it.pagina), k = pv ? pv.viewport.scale : 1;
+  const ww = el.offsetWidth, hh = el.offsetHeight, r = (it.rot || 0) * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  let minY = Infinity, maxY = -Infinity, maxX = -Infinity;
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const px = sx * ww / 2, py = sy * hh / 2, X = px * c - py * s, Y = px * s + py * c;
+    minY = Math.min(minY, Y); maxY = Math.max(maxY, Y); maxX = Math.max(maxX, X);
+  }
+  const yTip = -(hh / 2 + 52) * c; minY = Math.min(minY, yTip); maxY = Math.max(maxY, yTip); // punta de la manija
+  const yTop = hh / 2 + minY, yBot = hh / 2 + maxY, abajo = it.y * k + yTop < 64;
+  ctl.classList.toggle('abajo', abajo);
+  ctl.style.top = abajo ? 'auto' : (yTop - 60) + 'px'; ctl.style.bottom = abajo ? (hh - yBot - 60) + 'px' : 'auto';
+  ctl.style.right = (ww - (ww / 2 + maxX) - 2) + 'px';
 }
 function boton(txt, cls, clave, fn) {
   const titulo = t(clave);
@@ -93,13 +117,17 @@ function crearElemento(it) {
     });
     return el;
   }
+  const g = document.createElement('div'); g.className = 'giro'; el.appendChild(g); el._giro = g; // lo que gira: la caja del elemento
+  const man = document.createElement('div'); man.className = 'rot'; man.title = t('elementos.girarManija'); man.dataset.tk = 'elementos.girarManija'; man.innerHTML = svgIcono('girarder', 20); g.appendChild(man);
+  man.addEventListener('pointerdown', (e) => iniciarGiro(e, it, el));
   if (it.tipo === 'firma' || it.tipo === 'imagen') {
-    const img = document.createElement('img'); img.src = it.png || it.src; img.draggable = false; el.appendChild(img);
-    const rz = document.createElement('div'); rz.className = 'rz'; rz.title = t('elementos.cambiarTam'); rz.dataset.tk = 'elementos.cambiarTam'; el.appendChild(rz);
+    const img = document.createElement('img'); img.src = it.png || it.src; img.draggable = false; g.appendChild(img);
+    const rz = document.createElement('div'); rz.className = 'rz'; rz.title = t('elementos.cambiarTam'); rz.dataset.tk = 'elementos.cambiarTam'; g.appendChild(rz);
     rz.addEventListener('pointerdown', (e) => iniciarMovimiento(e, it, el, 'tam'));
+    if (it.tipo === 'firma') ctl.appendChild(botonColor(it, el));
   } else {
     const t = document.createElement('span'); t.className = 't'; t.contentEditable = 'plaintext-only'; t.spellcheck = false;
-    t.textContent = it.texto; el.appendChild(t);
+    t.textContent = it.texto; g.appendChild(t);
     const grip = boton('mover', 'grip', 'elementos.mover', () => {});
     grip.addEventListener('pointerdown', (e) => { e.stopPropagation(); iniciarMovimiento(e, it, el, 'mover'); });
     ctl.appendChild(grip);
@@ -118,11 +146,13 @@ function crearElemento(it) {
     });
     t.addEventListener('paste', (e) => { e.preventDefault(); document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\r/g, '')); });
   }
+  ctl.appendChild(boton('girarizq', '', 'elementos.girarIzq', () => girar90(it, -90)));
+  ctl.appendChild(boton('girarder', '', 'elementos.girarDer', () => girar90(it, 90)));
   ctl.appendChild(boton('tachito', 'x', 'elementos.borrar', () => borrar(it.id)));
   el.appendChild(ctl);
   el.addEventListener('pointerdown', (e) => {
     seleccionar(it.id);
-    if (e.target.closest('.ctl') || e.target.classList.contains('rz')) return;
+    if (e.target.closest('.ctl') || e.target.classList.contains('rz') || e.target.closest('.rot')) return;
     if (it.tipo === 'texto' && e.target.closest('.t')) return; // escribir
     iniciarMovimiento(e, it, el, 'mover');
   });
@@ -132,8 +162,62 @@ export function seleccionar(id) {
   E.sel = id;
   for (const [i, el] of E.els) el.classList.toggle('sel', i === id);
   const it = E.items.find((x) => x.id === id), el = E.els.get(id);
-  if (it && el) { const pv = vistaPagina(it.pagina); el.querySelector('.ctl').classList.toggle('abajo', it.y * (pv ? pv.viewport.scale : 1) < 64); }
+  if (it && el) {
+    if (el._giro) ubicarCtl(el, it);
+    else { const pv = vistaPagina(it.pagina); el.querySelector('.ctl').classList.toggle('abajo', it.y * (pv ? pv.viewport.scale : 1) < 64); }
+  }
 }
+// ---------- girar y cambiar de color ----------
+const norm = (g) => ((g % 360) + 360) % 360;
+function girar90(it, d) { it.rot = norm(Math.round((it.rot || 0) / 90) * 90 + d); sincronizar(); commit(); }
+function iniciarGiro(e, it, el) {
+  if (e.button !== undefined && e.button !== 0) return;
+  e.preventDefault(); e.stopPropagation();
+  const r = el._giro.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+  const ini = it.rot || 0, cuerpo = e.currentTarget;
+  try { cuerpo.setPointerCapture(e.pointerId); } catch (_) { /* nada */ }
+  const mover = (ev) => {
+    let a = norm(Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI + 90);
+    if (ev.shiftKey) a = norm(Math.round(a / 15) * 15);
+    else for (const m of [0, 90, 180, 270, 360]) if (Math.abs(a - m) <= 5) { a = m % 360; break; } // imán a los ángulos rectos
+    it.rot = Math.round(a * 10) / 10; sincronizar();
+  };
+  const fin = () => {
+    cuerpo.removeEventListener('pointermove', mover); cuerpo.removeEventListener('pointerup', fin); cuerpo.removeEventListener('pointercancel', fin);
+    if ((it.rot || 0) !== ini) commit();
+  };
+  cuerpo.addEventListener('pointermove', mover); cuerpo.addEventListener('pointerup', fin); cuerpo.addEventListener('pointercancel', fin);
+}
+const COLORES_FIRMA = [['azul', '#1E3A8A', 'elementos.azul'], ['negro', '#111111', 'elementos.negro']];
+function botonColor(it, el) {
+  const cont = document.createElement('div'); cont.className = 'colwrap';
+  const b = boton(t('elementos.color'), 'txt', 'elementos.colorTit', () => cont.classList.toggle('abierto'));
+  b.dataset.tx = 'elementos.color'; cont.appendChild(b);
+  const menu = document.createElement('div'); menu.className = 'colmenu';
+  for (const [nombre, hex, clave] of COLORES_FIRMA) {
+    const o = document.createElement('button'); o.type = 'button'; o.className = 'opcol'; o.dataset.color = nombre;
+    o.innerHTML = `<i class="mues" style="background:${hex}"></i><span data-tx="${clave}">${t(clave)}</span>`;
+    o.addEventListener('pointerdown', (ev) => ev.stopPropagation());
+    o.addEventListener('click', (ev) => { ev.stopPropagation(); cont.classList.remove('abierto'); recolorar(it, el, nombre, hex); });
+    menu.appendChild(o);
+  }
+  cont.appendChild(menu); return cont;
+}
+// Cada punto con algo de opacidad toma el color nuevo y conserva su opacidad.
+async function recolorar(it, el, nombre, hex) {
+  const img = await cargarImagen(it.png);
+  const c = document.createElement('canvas'); c.width = img.naturalWidth; c.height = img.naturalHeight;
+  const cx = c.getContext('2d'); cx.drawImage(img, 0, 0);
+  const d = cx.getImageData(0, 0, c.width, c.height), px = d.data, R = parseInt(hex.slice(1, 3), 16), G = parseInt(hex.slice(3, 5), 16), B = parseInt(hex.slice(5, 7), 16);
+  for (let i = 0; i < px.length; i += 4) if (px[i + 3] > 0) { px[i] = R; px[i + 1] = G; px[i + 2] = B; }
+  cx.putImageData(d, 0, 0);
+  if (!E.items.includes(it)) return; // mientras tanto se deshizo o se borró
+  it.png = c.toDataURL('image/png'); it.color = nombre;
+  el.querySelector('.giro > img').src = it.png; sincronizar(); commit();
+}
+document.addEventListener('pointerdown', (e) => {
+  for (const w of document.querySelectorAll('.colwrap.abierto')) if (!w.contains(e.target)) w.classList.remove('abierto');
+}, true);
 document.addEventListener('pointerdown', (e) => {
   if (E.colocando) return;
   if (E.sel && !(e.target.closest && e.target.closest('.it'))) { E.sel = null; for (const el of E.els.values()) el.classList.remove('sel'); }
@@ -155,7 +239,11 @@ function iniciarMovimiento(e, it, el, modo) {
       it.x = Math.min(vp.width - Math.min(20, ancho), Math.max(-ancho + 20, ini.x + dx));
       it.y = Math.min(vp.height - Math.min(20, alto), Math.max(-alto + 20, ini.y + dy));
     } else {
-      it.w = Math.max(20, Math.min(vp.width * 1.5, ini.w + dx)); it.h = it.w * ini.r;
+      // se mide sobre el eje del propio elemento (ya girado) y la esquina de arriba a la izquierda no se mueve
+      const rad = (it.rot || 0) * Math.PI / 180, c = Math.cos(rad), s = Math.sin(rad);
+      it.w = Math.max(20, Math.min(vp.width * 1.5, ini.w + dx * c + dy * s)); it.h = it.w * ini.r;
+      const ax = ini.x + ini.w / 2 + (-ini.w / 2 * c + ini.h / 2 * s), ay = ini.y + ini.h / 2 + (-ini.w / 2 * s - ini.h / 2 * c);
+      it.x = ax + (it.w / 2 * c - it.h / 2 * s) - it.w / 2; it.y = ay + (it.w / 2 * s + it.h / 2 * c) - it.h / 2;
     }
     estilar(el, it, k);
   };
@@ -165,7 +253,12 @@ function iniciarMovimiento(e, it, el, modo) {
   };
   cuerpo.addEventListener('pointermove', mover); cuerpo.addEventListener('pointerup', fin); cuerpo.addEventListener('pointercancel', fin);
 }
-function cambiarTamano(it, d) { it.size = Math.min(72, Math.max(6, it.size + d)); sincronizar(); commit(); }
+function cambiarTamano(it, d) {
+  const el = E.els.get(it.id), k = (vistaPagina(it.pagina) || { viewport: { scale: 1 } }).viewport.scale, w0 = el.offsetWidth, h0 = el.offsetHeight;
+  it.size = Math.min(72, Math.max(6, it.size + d)); sincronizar();
+  if (it.rot) { it.x += (w0 - el.offsetWidth) / 2 / k; it.y += (h0 - el.offsetHeight) / 2 / k; sincronizar(); } // girado: el centro se queda donde está
+  commit();
+}
 export function borrar(id) {
   E.items = E.items.filter((x) => x.id !== id); E.nuevos.delete(id); if (E.sel === id) E.sel = null; sincronizar(); commit();
 }

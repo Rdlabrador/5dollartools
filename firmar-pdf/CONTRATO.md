@@ -70,6 +70,7 @@ Programa → interfaz:
 | `firmaMovil` | `png` (data URL, fondo transparente, recortada) |
 | `fotosMovil` | `imagenes` (`[dataURL...]`, de 1 a 10, cada una `data:image/jpeg;base64,...` o `data:image/png;base64,...` ya validada: máx. 4000 px por lado). Solo en modo `foto`. La interfaz pregunta si van dentro de una página (elemento `imagen`) o como páginas nuevas |
 | `movilError` | `mensaje` |
+| `movilConectado` | — (el celular abrió la página con un código válido; una sola vez por sesión; no revela datos ni consume el código. Se envía en cuanto el GET con token válido llega, por cualquier IP (red o 127.0.0.1), sin mirar cabeceras. La interfaz pasa de «Escanee el código» a «Celular conectado»; al llegar `firmaMovil`/`fotosMovil` muestra vista previa y sigue solo al tocar «Listo») |
 | `movilVencido` | — (el código del celular venció a los 5 min; el servidor ya se apagó) |
 | `impreso` | — (la impresión se envió a la impresora; ver `imprimir`) |
 | `error` | `mensaje` (con `id` si la petición traía id). En `analizarPdf`/`comprimirPdf`/`protegerPdf`/`quitarContrasena` trae además `codigo`: `contrasena` \| `yaProtegido` \| `danado` \| `otro` |
@@ -90,6 +91,9 @@ Arrastrar un PDF a la ventana lo maneja la interfaz (FileReader); no pasa por C#
 - Al cerrar el programa se apaga.
 
 ## Página del celular (movil.html)
+Antes de firmar hay dos botones grandes «Azul» (#1E3A8A, por defecto) y «Negro» (#111111); al cambiar se redibujan los trazos y el PNG enviado lleva ese color; la elección se recuerda en `localStorage` (`pepepdf.colorFirma`).
+
+Diálogo del QR en el PC: en los pasos 1 y 2 el botón «Aceptar» cierra el diálogo SIN enviar `movilCancelar` (el servidor sigue hasta que llegue algo o venza); lo que llegue después (`firmaMovil`/`fotosMovil`) se carga igual: aviso, y «Guardar esta firma»/pregunta de fotos cuando no haya otro modal ni un elemento por colocar. «Cancelar» sí apaga. Prueba: `FIRMARPDF_PRUEBA_VIGENCIA_S` acorta la vigencia (segundos).
 Pantalla blanca completa para firmar con el dedo; arriba "Firme aquí con el dedo"; abajo botones grandes "Borrar" y "Enviar al computador". `touch-action:none`, sin scroll ni zoom, alta resolución (devicePixelRatio). Trazo negro/azul oscuro suave. Al enviar: recorta al contenido con margen, PNG transparente, POST a `location.pathname + '/firma'`, y muestra "¡Listo! Mire el computador.". Funciona sin librerías, autocontenida (estilos de la suite copiados en línea).
 
 ## Página de fotos del celular (movil-foto.html)

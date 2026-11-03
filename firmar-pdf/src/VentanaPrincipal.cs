@@ -50,7 +50,8 @@ sealed class VentanaPrincipal : Form
                 var imagenes = new JsonArray();
                 foreach (var f in fotos) imagenes.Add(f);
                 Enviar(new JsonObject { ["tipo"] = "fotosMovil", ["imagenes"] = imagenes });
-            }));
+            }),
+            () => BeginInvoke(() => Enviar(new JsonObject { ["tipo"] = "movilConectado" })));
 
         Load += async (_, _) => await IniciarAsync();
         FormClosing += (_, e) =>

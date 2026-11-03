@@ -23,19 +23,27 @@ sealed class ServidorMovil : IAsyncDisposable
     const int MaxCuerpoFoto = 25 * 1024 * 1024;
     const int MaxFotos = 10;
     const int MaxLado = 4000;
+    // 5 min; solo las pruebas automáticas la acortan (FIRMARPDF_PRUEBA_VIGENCIA_S, en segundos)
+#if DEBUG
+    static readonly TimeSpan Vigencia = int.TryParse(Environment.GetEnvironmentVariable("FIRMARPDF_PRUEBA_VIGENCIA_S"), out var vs) && vs > 0 && vs <= 300 ? TimeSpan.FromSeconds(vs) : TimeSpan.FromMinutes(5);
+#else
     static readonly TimeSpan Vigencia = TimeSpan.FromMinutes(5);
+#endif
 
     readonly Action<string> alRecibirFirma;
     readonly Action alVencer;
     readonly Action<string[]>? alRecibirFotos;
+    readonly Action? alConectar;
+    int avisoConectado; // 1 = ya se avisó en esta sesión
     readonly SemaphoreSlim cerrojo = new(1, 1);
     WebApplication? app;
     string? token;
     string modo = "firma"; // "firma" | "foto": cada sesión (y su token) sirve para un solo tipo
     CancellationTokenSource? vencimiento;
 
-    public ServidorMovil(Action<string> alRecibirFirma, Action alVencer, Action<string[]>? alRecibirFotos = null)
+    public ServidorMovil(Action<string> alRecibirFirma, Action alVencer, Action<string[]>? alRecibirFotos = null, Action? alConectar = null)
     {
+        this.alConectar = alConectar;
         this.alRecibirFirma = alRecibirFirma;
         this.alVencer = alVencer;
         this.alRecibirFotos = alRecibirFotos;
@@ -57,6 +65,7 @@ sealed class ServidorMovil : IAsyncDisposable
             Textos.T("movil.sinRed"));
 
         token = Token();
+        Volatile.Write(ref avisoConectado, 0);
         int puerto = 0;
         Exception? ultimo = null;
         for (int p = PuertoBase; p <= PuertoBase + 10; p++)
@@ -120,6 +129,8 @@ sealed class ServidorMovil : IAsyncDisposable
             if (html == null) return Results.NotFound();
             c.Response.Headers.CacheControl = "no-store";
             c.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            // aviso al PC: el celular abrió la página (solo con token válido, una vez por sesión; no consume el token)
+            if (Interlocked.Exchange(ref avisoConectado, 1) == 0) { try { alConectar?.Invoke(); } catch { } }
             return Results.Bytes(html, "text/html; charset=utf-8");
         });
 

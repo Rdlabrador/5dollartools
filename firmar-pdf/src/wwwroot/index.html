@@ -12,9 +12,9 @@
 
 <header id="barra">
   <button class="btn tb primary firmar" id="bFirmar" data-i18n-title="index.firmarTit"><span class="ic" data-ic="firmar"></span> <span data-i18n="index.firmar"></span></button>
-  <button class="btn tb" id="bAbrir" data-i18n-title="index.abrirTit"><span class="ic" data-ic="abrir"></span> <span data-i18n="index.abrir"></span></button>
-  <button class="btn tb solo-doc" id="bGuardar" data-i18n-title="index.guardarTit"><span class="ic" data-ic="guardar"></span> <span data-i18n="index.guardar"></span></button>
-  <button class="btn tb solo-doc" id="bImprimir" data-i18n-title="index.imprimirTit"><span class="ic" data-ic="imprimir"></span> <span data-i18n="index.imprimir"></span></button>
+  <button class="btn tb" id="bAbrir" data-i18n-title="index.abrirTit" data-i18n-aria="index.abrirTit"><span class="ic" data-ic="abrir"></span> <span class="tx" data-i18n="index.abrir"></span></button>
+  <button class="btn tb solo-doc" id="bGuardar" data-i18n-title="index.guardarTit" data-i18n-aria="index.guardarTit"><span class="ic" data-ic="guardar"></span> <span class="tx" data-i18n="index.guardar"></span></button>
+  <button class="btn tb solo-doc" id="bImprimir" data-i18n-title="index.imprimirTit" data-i18n-aria="index.imprimirTit"><span class="ic" data-ic="imprimir"></span> <span class="tx" data-i18n="index.imprimir"></span></button>
   <span class="sep solo-doc"></span>
   <div class="menu-caja solo-doc" id="cajaRellenar">
     <button class="btn tb" id="bRellenar" data-i18n-title="index.rellenarTit" aria-haspopup="menu" aria-expanded="false"><span class="ic" data-ic="rellenar"></span> <span data-i18n="index.rellenar"></span> <span class="ic" data-ic="abajo" data-tam="20"></span></button>
@@ -25,10 +25,16 @@
       <button class="menu-item" id="bAnotar" role="menuitem" data-i18n-title="index.anotarTit"><span class="ic" data-ic="anotar"></span> <span data-i18n="index.anotar"></span></button>
     </div>
   </div>
-  <button class="btn tb solo-doc" id="bBuscar" data-i18n-title="index.buscarTit"><span class="ic" data-ic="buscar"></span> <span data-i18n="index.buscar"></span></button>
-  <button class="btn tb solo-doc" id="bPaginas" data-i18n-title="index.paginasTit"><span class="ic" data-ic="paginas"></span> <span data-i18n="index.paginas"></span></button>
-  <button class="btn tb" id="bHerramientas" data-i18n-title="index.herramientasTit"><span class="ic" data-ic="herramientas"></span> <span data-i18n="index.herramientas"></span></button>
+  <button class="btn tb solo-doc" id="bBuscar" data-i18n-title="index.buscarTit" data-i18n-aria="index.buscarTit"><span class="ic" data-ic="buscar"></span> <span class="tx" data-i18n="index.buscar"></span></button>
+  <button class="btn tb solo-doc" id="bPaginas" data-i18n-title="index.paginasTit" data-i18n-aria="index.paginasTit"><span class="ic" data-ic="paginas"></span> <span class="tx" data-i18n="index.paginas"></span></button>
+  <button class="btn tb" id="bHerramientas" data-i18n-title="index.herramientasTit" data-i18n-aria="index.herramientasTit"><span class="ic" data-ic="herramientas"></span> <span class="tx" data-i18n="index.herramientas"></span></button>
   <span class="grow"></span>
+  <div id="grupoZoom" class="solo-doc" role="group" data-i18n-aria="index.zoomAria">
+    <button class="btn tb ic-solo" id="bZoomMenos" data-i18n-title="index.alejarTit" data-i18n-aria="index.alejarTit"><span class="ic" data-ic="menos"></span></button>
+    <span id="zoomTxt" class="info" role="button" tabindex="0" data-i18n-title="index.ajustarTit">100 %</span>
+    <button class="btn tb ic-solo" id="bZoomMas" data-i18n-title="index.acercarTit" data-i18n-aria="index.acercarTit"><span class="ic" data-ic="mas"></span></button>
+    <button class="btn tb ic-solo" id="bAncho" data-i18n-title="index.ajustarTit" data-i18n-aria="index.ajustarTit"><span class="ic" data-ic="ajustar"></span></button>
+  </div>
   <button class="btn tb idioma" id="bIdioma" data-i18n-title="index.idiomaTit" data-i18n-aria="index.idiomaAria"><span class="ic" data-ic="globo" data-tam="22"></span> <span id="idiomaTxt">ES</span></button>
 </header>
 
@@ -88,11 +94,6 @@
       <span class="sep"></span>
       <button class="btn tb" id="bDeshacer" data-i18n-title="index.deshacerTit"><span class="ic" data-ic="deshacer"></span> <span data-i18n="index.deshacer"></span></button>
       <button class="btn tb" id="bRehacer" data-i18n-title="index.rehacerTit"><span class="ic" data-ic="rehacer"></span> <span data-i18n="index.rehacer"></span></button>
-      <span class="sep"></span>
-      <button class="btn tb" id="bZoomMenos" data-i18n-title="index.alejarTit"><span class="ic" data-ic="menos"></span> <span data-i18n="index.alejar"></span></button>
-      <span id="zoomTxt" class="info">100 %</span>
-      <button class="btn tb" id="bZoomMas" data-i18n-title="index.acercarTit"><span class="ic" data-ic="mas"></span> <span data-i18n="index.acercar"></span></button>
-      <button class="btn tb" id="bAncho" data-i18n-title="index.ajustarTit"><span class="ic" data-ic="ajustar"></span> <span data-i18n="index.ajustar"></span></button>
     </div>
   </div>
 
@@ -114,10 +115,23 @@
 <!-- Firmar: elegir cómo -->
 <div class="modal hidden" id="dlgFirma"><div class="caja">
   <h2 data-i18n="index.comoFirmar"></h2>
-  <button class="btn grande opcion hidden" id="fGuardada"><span class="ic" data-ic="ok" data-tam="32"></span> <span data-i18n="index.firmaGuardada"></span><small><img id="fGuardadaImg" data-i18n-alt="index.firmaGuardadaAlt"></small><span class="rec" data-i18n="index.recomendado"></span></button>
+  <div id="listaFirmas" class="lista-firmas"></div>
   <button class="btn grande opcion" id="fMouse"><span class="ic" data-ic="mouse" data-tam="32"></span> <span data-i18n="index.conMouse"></span><small data-i18n="index.conMouseSub"></small><span class="rec" data-i18n="index.recomendado"></span></button>
   <button class="btn grande opcion" id="fMovil"><span class="ic" data-ic="movil" data-tam="32"></span> <span data-i18n="index.conCelular"></span><small data-i18n="index.conCelularSub"></small></button>
   <div class="pie"><button class="btn grande cancelar" data-cerrar data-i18n="index.cancelar"></button></div>
+</div></div>
+
+<!-- Guardar la firma nueva -->
+<div class="modal hidden" id="dlgGuardarFirma"><div class="caja">
+  <h2 data-i18n="firmar.guardarTitulo"></h2>
+  <div class="firma-previa"><img id="gfImg" data-i18n-alt="firmar.nuevaAlt"></div>
+  <label for="gfNombre" id="gfEtiqueta" data-i18n="firmar.nombreEt"></label>
+  <input type="text" id="gfNombre" class="campo" maxlength="40" autocomplete="off" data-i18n-placeholder="firmar.nombreEjemplos">
+  <p id="gfLleno" class="error-txt hidden" data-i18n="firmar.llenas"></p>
+  <div class="pie">
+    <button class="btn grande cancelar" id="gfSolo" data-i18n="firmar.soloUsar"></button>
+    <button class="btn grande primary" id="gfGuardar" data-i18n="firmar.guardarYUsar"></button>
+  </div>
 </div></div>
 
 <!-- Firmar con el mouse -->
@@ -141,16 +155,30 @@
 <!-- Firmar con el celular -->
 <div class="modal hidden" id="dlgMovil"><div class="caja ancha">
   <h2 id="movilTitulo" data-i18n="index.firmarCelular"></h2>
-  <div class="movil-cuerpo">
-    <div class="qr-caja"><img id="qrImg" data-i18n-alt="index.qrAlt" class="hidden"><div id="qrEspera"></div></div>
-    <ol class="pasos">
-      <li data-i18n="index.paso1"></li>
-      <li data-i18n="index.paso2"></li>
-      <li><span id="movilPaso3" data-i18n="index.paso3"></span> <b data-i18n="index.enviar"></b>.</li>
-    </ol>
+  <div id="movilEsperando">
+    <div class="movil-cuerpo">
+      <div class="qr-caja"><img id="qrImg" data-i18n-alt="index.qrAlt" class="hidden"><div id="qrEspera"></div></div>
+      <ol class="pasos">
+        <li data-i18n="index.paso1"></li>
+        <li data-i18n="index.paso2"></li>
+        <li><span id="movilPaso3" data-i18n="index.paso3"></span> <b data-i18n="index.enviar"></b>.</li>
+      </ol>
+    </div>
+    <p class="nota" data-i18n="index.mismaRed"></p>
+    <p class="nota ayuda-red hidden" id="movilAyuda" role="status" data-i18n="index.noConecta"></p>
   </div>
-  <p class="nota" data-i18n="index.mismaRed"></p>
-  <div class="pie"><button class="btn grande cancelar" id="movilCancelarBtn" data-i18n="index.cancelar"></button></div>
+  <div id="movilEstado" class="movil-estado hidden" role="status" aria-live="polite">
+    <div class="movil-check" id="movilCheck"><svg viewBox="0 0 24 24" width="44" height="44" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+    <div class="movil-titulo" id="movilEstadoTitulo"></div>
+    <div class="movil-sub" id="movilEstadoSub"></div>
+    <div class="espera-puntos" id="movilPuntos" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="movil-vista hidden" id="movilVista"></div>
+  </div>
+  <div class="pie">
+    <button class="btn grande cancelar" id="movilCancelarBtn" data-i18n="index.cancelar"></button>
+    <button class="btn grande primary" id="movilAceptar" data-i18n="index.aceptar"></button>
+    <button class="btn grande primary hidden" id="movilListo" data-i18n="index.listo"></button>
+  </div>
 </div></div>
 
 <!-- Contraseña -->

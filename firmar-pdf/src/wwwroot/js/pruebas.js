@@ -3,19 +3,20 @@ import { E } from './estado.js';
 import { cargarImagen, elegir, pedirTexto, pedirRangoPaginas, progreso, finProgreso } from './util.js';
 import { pedir } from './puente.js';
 import { cargarPDF, cambiarDocumento, reemplazarDocumento, bytesActuales } from './documento.js';
-import { sincronizar } from './elementos.js';
+import { sincronizar, seleccionar } from './elementos.js';
 import { commit, deshacer, rehacer, sucio } from './historial.js';
 import { construirPdf, obtenerPagina } from './guardar.js';
 import { registrarHerramienta, herramientasRegistradas, abrirHerramientas } from './herramientas.js';
 import { crearAnotacion } from './anotar.js';
 import { buscar } from './buscar.js';
 import { aplicarMarcaAgua, numerarPaginas } from './marcas.js';
+import { leerFirmas, agregarFirma, limpiarFirmas } from './firmas.js';
 
 window.__fp = {
   async cargar(bytes, nombre) { return cargarPDF(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), nombre || 'prueba.pdf'); },
   items() {
     return E.items.map((i) => {
-      const o = { id: i.id, tipo: i.tipo, pagina: i.pagina, x: i.x, y: i.y, w: i.w, h: i.h, texto: i.texto, size: i.size };
+      const o = { id: i.id, tipo: i.tipo, pagina: i.pagina, x: i.x, y: i.y, w: i.w, h: i.h, texto: i.texto, size: i.size, rot: i.rot, color: i.color };
       if (E.paginas[i.pagina]) { const [px, py] = E.paginas[i.pagina].getViewport({ scale: 1 }).convertToPdfPoint(i.x, i.y + i.h); o.xPdf = px; o.yPdf = py; }
       return o;
     });
@@ -32,6 +33,14 @@ window.__fp = {
     const it = { id: E.sigId++, tipo: 'texto', pagina, x: vx, y: vy - size, w: 0, h: size, size, texto };
     E.items.push(it); sincronizar(); commit(); return it.id;
   },
+  async colocarImagen(dataURL, pagina, xPdf, yPdf, anchoPdf) {
+    const img = await cargarImagen(dataURL); const w = anchoPdf, h = w * img.naturalHeight / img.naturalWidth;
+    const pp = await obtenerPagina(pagina); const [vx, vy] = pp.getViewport({ scale: 1 }).convertToViewportPoint(xPdf, yPdf);
+    const it = { id: E.sigId++, tipo: 'imagen', pagina, x: vx, y: vy - h, w, h, src: dataURL };
+    E.items.push(it); sincronizar(); commit(); return it.id;
+  },
+  itemsCrudos: () => JSON.parse(JSON.stringify(E.items.map((i) => ({ ...i, png: i.png ? i.png.length : 0, src: i.src ? i.src.length : 0 })))),
+  seleccionar,
   deshacer, rehacer, sucio: () => !!(E.pdf && sucio()),
   estado: () => ({ sucio: sucio(), protegido: E.protegido, paginas: E.pdf ? E.pdf.numPages : 0, historial: E.hist.length, idx: E.histIdx, docs: E.docs.size, docId: E.docId }),
   bytesFinales(final) { return construirPdf(!!final); },
@@ -42,4 +51,6 @@ window.__fp = {
   // fase 2 (anotar): tipos 'resaltar','subrayar','tachar','trazo','rect','flecha','nota'; datos en puntos de la página a escala 1 (como se ve)
   anotar(tipo, pagina, datos) { const id = crearAnotacion(tipo, pagina, datos || {}); sincronizar(); commit(); return id; },
   buscar, marcaAgua: aplicarMarcaAgua, numerarPaginas,
+  // firmas guardadas (varias)
+  firmas: leerFirmas, agregarFirma, limpiarFirmas,
 };
