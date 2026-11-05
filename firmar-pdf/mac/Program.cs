@@ -37,7 +37,12 @@ static class Program
 #else
             .SetDevToolsEnabled(false)
 #endif
-            .RegisterWebMessageReceivedHandler((_, mensaje) => puente?.Recibir(mensaje))
+            .RegisterWebMessageReceivedHandler((_, mensaje) =>
+            {
+                if (ServidorInterfaz.Diag) { Console.Out.WriteLine("DIAG js: " + (mensaje.Length > 300 ? mensaje[..300] : mensaje)); Console.Out.Flush(); }
+                if (mensaje.StartsWith("DIAG ", StringComparison.Ordinal)) return;
+                puente?.Recibir(mensaje);
+            })
             .Load(url);
 
         puente = new Puente(new PlataformaMac(ventana), pdfInicial);

@@ -27,6 +27,15 @@ sealed class ServidorInterfaz : IAsyncDisposable
         "addEventListener:function(t,f){if(t==='message')ls.push(f);}," +
         "removeEventListener:function(t,f){var i=ls.indexOf(f);if(i>=0)ls.splice(i,1);}};})();</script>";
 
+    // Solo prueba de humo del CI (PEPEPDF_PRUEBA=1): registra pedidos y errores de JavaScript por stdout.
+    public static readonly bool Diag = Environment.GetEnvironmentVariable("PEPEPDF_PRUEBA") == "1";
+    const string ScriptDiag =
+        "<script>(function(){function m(t){try{window.webkit.messageHandlers.photinointerop.postMessage('DIAG '+t);}catch(e){}}" +
+        "m('inicio external='+typeof window.external+' recv='+typeof (window.external&&window.external.receiveMessage));" +
+        "addEventListener('error',function(e){m('error '+e.message+' @'+e.filename+':'+e.lineno);},true);" +
+        "addEventListener('unhandledrejection',function(e){m('rechazo '+(e.reason&&(e.reason.stack||e.reason)));});" +
+        "setTimeout(function(){m('8s iconos='+document.querySelectorAll('[data-ic] svg').length+' chrome.webview='+typeof (window.chrome&&window.chrome.webview));},8000);})();</script>";
+
     readonly string token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
     readonly bool inyectarShim;
     WebApplication? app;
@@ -104,14 +113,15 @@ sealed class ServidorInterfaz : IAsyncDisposable
         if (ruta == "") ruta = "index.html";
 
         var datos = Recursos.Leer(ruta);
-        if (datos == null) { r.StatusCode = 404; return; }
+        if (datos == null) { r.StatusCode = 404; if (Diag) Console.Out.WriteLine($"DIAG pedido {ruta} -> 404"); return; }
 
         if (inyectarShim && ruta.Equals("index.html", StringComparison.OrdinalIgnoreCase))
         {
             // el shim va antes del primer <script>
             var html = Encoding.UTF8.GetString(datos);
             int i = html.IndexOf("<script", StringComparison.OrdinalIgnoreCase);
-            html = i >= 0 ? html.Insert(i, Shim) : html + Shim;
+            var extra = (Diag ? ScriptDiag : "") + Shim;
+            html = i >= 0 ? html.Insert(i, extra) : html + extra;
             datos = Encoding.UTF8.GetBytes(html);
         }
 
@@ -119,6 +129,7 @@ sealed class ServidorInterfaz : IAsyncDisposable
         r.ContentType = Recursos.Mime(ruta);
         r.ContentLength = datos.Length;
         if (c.Request.Method != "HEAD") await r.Body.WriteAsync(datos);
+        if (Diag) Console.Out.WriteLine($"DIAG pedido {ruta} -> 200 {r.ContentType}");
     }
 
     public async ValueTask DisposeAsync()

@@ -121,6 +121,10 @@ jobs:
           kill "$(cat prueba/app.pid)" || true
           [ "$CODIGO" != "000" ] || { echo "El servidor no responde"; exit 1; }
           [ "$CODIGO_INDEX" = "200" ] || { echo "index.html no devolvió 200"; exit 1; }
+          # La interfaz debe haber corrido su JavaScript: a los 8 s informa cuántos íconos dibujó
+          echo "--- diagnóstico de la interfaz ---"; grep 'DIAG' prueba/app.log | head -80 || true
+          ICONOS="$(grep -o 'iconos=[0-9]*' prueba/app.log | head -1 | cut -d= -f2)"
+          [ "${ICONOS:-0}" -gt 0 ] || { echo "La interfaz no dibujó sus íconos: el JavaScript no corrió"; exit 1; }
 
       - name: Subir captura y registro
         if: always()
