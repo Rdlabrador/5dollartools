@@ -35,6 +35,7 @@ function iconoEn(el, icono) {
 }
 function dibujarPanel() {
   const cont = $('herrGrupos'); cont.innerHTML = '';
+  let color = 0; // cada tarjeta toma el siguiente color pastel (.hp0 a .hp6), así dos vecinas nunca se repiten
   for (const g of GRUPOS) {
     const sec = document.createElement('section'); sec.className = 'herr-grupo';
     const tg = document.createElement('h3'); tg.textContent = t('herramientas.grupo.' + g); sec.appendChild(tg);
@@ -44,7 +45,7 @@ function dibujarPanel() {
     } else {
       const rejilla = document.createElement('div'); rejilla.className = 'herr-rejilla';
       for (const h of lista) {
-        const b = document.createElement('button'); b.className = 'btn herr-tarjeta'; b.dataset.id = h.id;
+        const b = document.createElement('button'); b.className = 'btn herr-tarjeta hp' + (color++ % 7); b.dataset.id = h.id;
         const off = h.requierePdf && !E.pdf; b.disabled = off;
         if (off) b.title = t('herramientas.abraPrimero');
         const ic = document.createElement('span'); ic.className = 'herr-ic'; iconoEn(ic, h.icono);

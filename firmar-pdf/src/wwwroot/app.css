@@ -42,6 +42,10 @@ input::placeholder, textarea::placeholder { color: #6F7482; }
 .btn.grande { min-height: 56px; padding: 10px 24px; font-size: 22px; }
 .btn.primary.grande { min-height: 64px; padding: 14px 36px; }
 #barra .btn.primary { min-height: 64px; padding: 8px 28px; font-size: 22px; }
+/* Firmar: el botón más importante, grande y fácil de ver para personas con poca vista */
+#barra #bFirmar { min-height: 68px; padding: 6px 34px 6px 26px; font-size: 28px; font-weight: 800; gap: 12px; letter-spacing: .01em;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 5px var(--accent), var(--sombra-1); margin-right: 8px; }
+#barra #bFirmar .svg-ic { stroke-width: 2.4; }
 .ic { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
 .svg-ic { display: block; flex: none; }
 
@@ -208,8 +212,20 @@ body.colocando .it { pointer-events: none; }
 .herr-grupo .proximamente { color: var(--muted); font-size: 18px; margin: 0 0 8px; }
 .herr-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 8px; }
 .btn.herr-tarjeta { display: grid; grid-template-columns: 48px 1fr; gap: 12px; justify-content: stretch; align-items: center; text-align: left; min-height: 84px; padding: 12px 16px; }
-.herr-ic { display: grid; place-items: center; color: var(--tinta); }
-.herr-ic svg { width: 32px; height: 32px; }
+.herr-ic { display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 255, 255, .75); color: var(--tinta); }
+.herr-ic svg { width: 28px; height: 28px; }
+/* un color pastel por herramienta (fondo) con su tono oscuro (ícono y borde) */
+.btn.herr-tarjeta { background: var(--hp, var(--panel)); border-color: var(--hb, var(--borde)); }
+.btn.herr-tarjeta:hover:not(:disabled) { border-color: var(--hc, #9AA1AF); filter: saturate(1.25); }
+.btn.herr-tarjeta .herr-ic { color: var(--hc, var(--tinta)); }
+.btn.herr-tarjeta:disabled { opacity: .5; }
+.hp0 { --hp: #E3ECFF; --hb: #BCCDF5; --hc: #1E40AF; }  /* azul */
+.hp1 { --hp: #E0F4E7; --hb: #B3DFC2; --hc: #166534; }  /* verde */
+.hp2 { --hp: #FFE8DA; --hb: #F5C6A8; --hc: #9A3412; }  /* durazno */
+.hp3 { --hp: #EEE6FF; --hb: #CFC0F2; --hc: #5B21B6; }  /* lila */
+.hp4 { --hp: #FFF3C4; --hb: #EBD98A; --hc: #854D0E; }  /* amarillo */
+.hp5 { --hp: #FDE3EC; --hb: #F1BCCF; --hc: #9D174D; }  /* rosado */
+.hp6 { --hp: #DAF3F1; --hb: #A9DDD8; --hc: #115E59; }  /* menta */
 .herr-tx { display: flex; flex-direction: column; gap: 2px; }
 .herr-tx b { font-size: 18px; }
 .herr-tx small { font-size: 16px; font-weight: 400; color: var(--muted); }
@@ -333,12 +349,12 @@ body.ocultando .pdfViewer .page .textLayer { user-select: none; -webkit-user-sel
 #grupoZoom { display: flex; align-items: center; gap: 2px; }
 #grupoZoom .btn { padding: 8px 12px; min-width: 48px; justify-content: center; }
 #grupoZoom .info { min-width: 3.4em; font-size: 18px; font-weight: 600; color: var(--text); cursor: pointer; white-space: nowrap; }
-/* pantallas medianas: Abrir, Guardar e Imprimir conservan su nombre; el resto queda solo con ícono */
-@media (max-width: 1499px) {
-  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar):not(#bImprimir) .tx { display: none; }
-  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar):not(#bImprimir):not(#grupoZoom .btn) { padding: 8px 12px; min-width: 48px; }
+/* pantallas medianas: Abrir y Guardar como conservan su nombre; el resto queda solo con ícono */
+@media (max-width: 1699px) {
+  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar) .tx { display: none; }
+  #barra .btn:not(.firmar):not(#bRellenar):not(#bIdioma):not(#bAbrir):not(#bGuardar):not(#grupoZoom .btn) { padding: 8px 12px; min-width: 48px; }
 }
 @media (max-width: 1299px) {
-  #barra #bAbrir .tx, #barra #bGuardar .tx, #barra #bImprimir .tx { display: none; }
-  #barra #bAbrir, #barra #bGuardar, #barra #bImprimir { padding: 8px 12px; min-width: 48px; }
+  #barra #bAbrir .tx, #barra #bGuardar .tx { display: none; }
+  #barra #bAbrir, #barra #bGuardar { padding: 8px 12px; min-width: 48px; }
 }
