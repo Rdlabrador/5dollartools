@@ -16,7 +16,7 @@ using QRCoder;
 namespace FirmarPdf;
 
 /// <summary>Servidor de red mínimo, encendido solo mientras el usuario firma con el celular.</summary>
-sealed class ServidorMovil : IAsyncDisposable
+public sealed class ServidorMovil : IAsyncDisposable
 {
     const int PuertoBase = 47615;
     const int MaxCuerpo = 3 * 1024 * 1024;
@@ -321,6 +321,11 @@ sealed class ServidorMovil : IAsyncDisposable
             if (ni.OperationalStatus != OperationalStatus.Up) continue;
             if (ni.NetworkInterfaceType is not (NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet
                 or NetworkInterfaceType.GigabitEthernet or NetworkInterfaceType.FastEthernetT)) continue;
+            // macOS: solo Wi-Fi/Ethernet reales (en0, en1...); fuera túneles, AirDrop, puentes y loopback
+            if (OperatingSystem.IsMacOS())
+            {
+                if (!System.Text.RegularExpressions.Regex.IsMatch(ni.Name, @"^en\d+$")) continue;
+            }
             var desc = (ni.Description + " " + ni.Name).ToLowerInvariant();
             if (desc.Contains("virtual") || desc.Contains("vmware") || desc.Contains("vbox") ||
                 desc.Contains("hyper-v") || desc.Contains("vethernet") || desc.Contains("tap-windows") ||

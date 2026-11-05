@@ -8,7 +8,7 @@ static class Program
     static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
-        Textos.Iniciar(VentanaPrincipal.RaizDatos());
+        Textos.Iniciar(PlataformaWindows.RaizDatos());
 
         try
         {

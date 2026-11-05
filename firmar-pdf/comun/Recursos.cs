@@ -3,7 +3,7 @@ using System.Reflection;
 namespace FirmarPdf;
 
 /// <summary>Recursos incrustados (carpeta wwwroot) con su tipo MIME.</summary>
-static class Recursos
+public static class Recursos
 {
     static readonly Assembly Ensamblado = typeof(Recursos).Assembly;
     static readonly Dictionary<string, string> Nombres = Ensamblado.GetManifestResourceNames()

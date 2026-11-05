@@ -20,11 +20,16 @@ export function agregar(textos) {
   for (const l of IDIOMAS) Object.assign(dic[l], textos[l] || {});
 }
 
+// En Mac los atajos se escriben con ⌘: "(Ctrl+S)" → "(⌘S)". En Windows no cambia nada.
+const ES_MAC = /Mac/i.test(navigator.platform || navigator.userAgent || '');
+
 // t('paginas.borradas', {n: 3}) → reemplaza {n}. Si falta en el idioma, usa el español; si falta del todo, la clave.
 export function t(clave, vars) {
-  let s = dic[actual][clave] ?? dic.es[clave];
+  // en Mac, '<clave>.mac' reemplaza al texto que habla de Windows
+  let s = (ES_MAC ? dic[actual][clave + '.mac'] ?? dic.es[clave + '.mac'] : undefined) ?? dic[actual][clave] ?? dic.es[clave];
   if (s === undefined) { console.warn('[i18n] falta', clave); return clave; }
   if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? String(vars[k]) : m));
+  if (ES_MAC) s = s.replace(/Ctrl\+(\w)/g, '⌘$1');
   return s;
 }
 

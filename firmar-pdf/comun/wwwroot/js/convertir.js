@@ -36,6 +36,9 @@ agregar({
     'convertir.ocr.cancelar': 'Cancelar',
     'convertir.ocr.faltaAviso': 'Este computador no tiene el reconocimiento de texto en {idioma}. Puede seguir con otro idioma, pero las letras con tildes o signos especiales pueden salir mal.',
     'convertir.ocr.pasos': 'Para instalarlo:\n1. Abra Configuración de Windows.\n2. Elija Hora e idioma → Idioma.\n3. Agregue el idioma {idioma}.\n4. En sus Opciones, instale "Reconocimiento de texto".\n\nDespués vuelva a intentarlo.',
+    'convertir.ocr.pasos.mac': 'Este Mac no tiene el reconocimiento de texto para {idioma}.
+
+Actualice macOS en Ajustes del Sistema → General → Actualización de software y vuelva a intentarlo.',
     'convertir.ocr.ningunoTitulo': 'Falta el reconocimiento de texto',
     'convertir.ocr.ningunoMsg': 'Este computador no tiene instalado el reconocimiento de texto en {idioma}.',
     'convertir.ocr.entendido': 'Entendido',
@@ -122,6 +125,9 @@ agregar({
     'convertir.ocr.cancelar': 'Cancel',
     'convertir.ocr.faltaAviso': 'This computer does not have text recognition for {idioma}. You can continue with another language, but accented letters and special characters may come out wrong.',
     'convertir.ocr.pasos': 'To install it:\n1. Open Windows Settings.\n2. Choose Time & Language → Language.\n3. Add the language {idioma}.\n4. Open its Options and install "Optical character recognition".\n\nThen try again.',
+    'convertir.ocr.pasos.mac': 'This Mac does not have text recognition for {idioma}.
+
+Update macOS in System Settings → General → Software Update, then try again.',
     'convertir.ocr.ningunoTitulo': 'Text recognition is missing',
     'convertir.ocr.ningunoMsg': 'This computer does not have text recognition installed for {idioma}.',
     'convertir.ocr.entendido': 'Got it',

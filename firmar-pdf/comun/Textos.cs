@@ -7,7 +7,7 @@ namespace FirmarPdf;
 /// Uso: Textos.T("clave") o Textos.T("clave", arg0, arg1) (formato con {0}, {1}).
 /// El idioma actual es "es" o "en": se lee de %LOCALAPPDATA%\FirmarPDF\idioma.txt (o del idioma de Windows) y cambia con Textos.Cambiar.
 /// </summary>
-static class Textos
+public static class Textos
 {
     public const string Es = "es";
     public const string En = "en";
@@ -50,7 +50,10 @@ static class Textos
     public static string T(string clave, params object?[] args)
     {
         var d = idioma == En ? EnTextos : EsTextos;
-        if (!d.TryGetValue(clave, out var t) && !EsTextos.TryGetValue(clave, out t)) return clave;
+        string? t = null;
+        // En Mac, una clave "<clave>.mac" reemplaza al texto que habla de Windows
+        if (OperatingSystem.IsMacOS()) { d.TryGetValue(clave + ".mac", out t); if (t == null) EsTextos.TryGetValue(clave + ".mac", out t); }
+        if (t == null && !d.TryGetValue(clave, out t) && !EsTextos.TryGetValue(clave, out t)) return clave;
         return args.Length == 0 ? t : string.Format(CultureInfo.CurrentCulture, t, args);
     }
 
@@ -153,6 +156,11 @@ static class Textos
         ["movil.sinRed"] = "No se encontró una conexión Wi-Fi o de red. Conecte el computador a la misma red que el celular.",
         ["movil.noEncendio"] = "No se pudo encender la conexión con el celular. Puede que el Firewall de Windows la esté bloqueando. ({0})",
         ["movil.paginaInvalida"] = "Este código ya no sirve. Pida uno nuevo en el computador.",
+
+        // solo Mac (reemplazan a los de Windows)
+        ["imprimir.ctrlPVentana.mac"] = "El documento se abrió en Vista Previa. Para imprimir, presione ⌘ + P en esa ventana.",
+        ["ocr.noDisponible.mac"] = "Este Mac no puede reconocer texto en ese idioma. Actualice macOS en Ajustes del Sistema > General > Actualización de software y vuelva a intentarlo.",
+        ["movil.noEncendio.mac"] = "No se pudo encender la conexión con el celular. Puede que el firewall de macOS la esté bloqueando (Ajustes del Sistema > Red > Firewall). ({0})",
     };
 
     static readonly Dictionary<string, string> EnTextos = new()
@@ -237,5 +245,10 @@ static class Textos
         ["movil.sinRed"] = "No Wi-Fi or network connection was found. Please connect the computer to the same network as the phone.",
         ["movil.noEncendio"] = "The connection with the phone could not be started. Windows Firewall may be blocking it. ({0})",
         ["movil.paginaInvalida"] = "This code no longer works. Please ask for a new one on the computer.",
+
+        // Mac only (replace the Windows texts)
+        ["imprimir.ctrlPVentana.mac"] = "The document opened in Preview. To print, press ⌘ + P in that window.",
+        ["ocr.noDisponible.mac"] = "This Mac cannot recognize text in that language. Update macOS in System Settings > General > Software Update, then try again.",
+        ["movil.noEncendio.mac"] = "The connection with the phone could not be started. The macOS firewall may be blocking it (System Settings > Network > Firewall). ({0})",
     };
 }

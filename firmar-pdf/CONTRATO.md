@@ -6,8 +6,10 @@ Usuarios: personas mayores → botones grandes (mín. 48 px de alto), letra base
 ## Carpetas
 ```
 firmar-pdf\
-  src\FirmarPdf.csproj  Program.cs  VentanaPrincipal.cs  ServidorMovil.cs  Impresion.cs ...
-  src\wwwroot\                 ← todo va INCRUSTADO en el exe (EmbeddedResource), nada suelto
+  PepePDF.sln                    ← solución: comun\ (biblioteca multiplataforma) + src\ (programa de Windows)
+  src\FirmarPdf.csproj  Program.cs  VentanaPrincipal.cs  PlataformaWindows.cs  Impresion.cs ...
+  comun\PepePDF.Comun.csproj  Puente.cs  IPlataforma.cs (ver PLATAFORMA.md)  ServidorMovil.cs ...
+  comun\wwwroot\               ← todo va INCRUSTADO en el exe (EmbeddedResource), nada suelto
     index.html  app.css             ← interfaz del PC
     js\                             ← módulos ES: main, estado, util, puente, visor, historial, documento, elementos, firmar, guardar, herramientas, teclado, pruebas
     movil.html                      ← página del celular (la sirve el servidor de red)

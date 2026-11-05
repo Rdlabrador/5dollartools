@@ -311,6 +311,8 @@ Si intenta cerrar la ventana con cambios sin guardar, el programa le pregunta an
 firmar-pdf\
   README.md                  este archivo
   CONTRATO.md                mensajes entre C# y la interfaz (leer antes de cambiar algo)
+  (Desde la separación en `comun\` y `src\`: ServidorMovil, Recursos, Nombres, Textos, Motor\OperacionesPdf, Motor\Word, Puente,
+   IPlataforma y wwwroot viven en `comun\`; en `src\` quedan Program, VentanaPrincipal, PlataformaWindows, Impresion, Motor\Ocr, Motor\Office. Ver `comun\PLATAFORMA.md`.)
   src\
     FirmarPdf.csproj         target net8.0-windows10.0.19041.0 (AssemblyName: PepePDF)
     Program.cs               arranque

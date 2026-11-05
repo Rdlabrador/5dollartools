@@ -5,39 +5,6 @@ using Windows.Storage.Streams;
 
 namespace FirmarPdf.Motor;
 
-public sealed class PalabraOcr
-{
-    public string Texto { get; set; } = "";
-    public double X { get; set; }
-    public double Y { get; set; }
-    public double Ancho { get; set; }
-    public double Alto { get; set; }
-}
-
-public sealed class LineaOcr
-{
-    public string Texto { get; set; } = "";
-    public double X { get; set; }
-    public double Y { get; set; }
-    public double Ancho { get; set; }
-    public double Alto { get; set; }
-    public List<PalabraOcr> Palabras { get; set; } = new();
-}
-
-/// <summary>Coordenadas en píxeles de la imagen original enviada (anchoImg x altoImg).</summary>
-public sealed class ResultadoOcr
-{
-    public string Idioma { get; set; } = "";
-    public List<LineaOcr> Lineas { get; set; } = new();
-    public int AnchoImg { get; set; }
-    public int AltoImg { get; set; }
-}
-
-public sealed class OcrNoDisponibleException : Exception
-{
-    public OcrNoDisponibleException() : base(Textos.T("ocr.noDisponible")) { }
-}
-
 /// <summary>Reconocimiento de texto con el motor propio de Windows (Windows.Media.Ocr).</summary>
 public static class Ocr
 {

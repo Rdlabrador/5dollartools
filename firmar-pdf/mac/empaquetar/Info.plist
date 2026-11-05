@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>PepePDF</string>
+	<key>CFBundleDisplayName</key><string>PepePDF</string>
+	<key>CFBundleIdentifier</key><string>com.rdlabrador.pepepdf</string>
+	<key>CFBundleExecutable</key><string>PepePDF</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleSignature</key><string>????</string>
+	<key>CFBundleVersion</key><string>1.2.0</string>
+	<key>CFBundleShortVersionString</key><string>1.2.0</string>
+	<key>CFBundleIconFile</key><string>PepePDF</string>
+	<key>CFBundleDevelopmentRegion</key><string>es</string>
+	<key>CFBundleLocalizations</key>
+	<array><string>es</string><string>en</string></array>
+	<key>LSMinimumSystemVersion</key><string>11.0</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key><string>PDF</string>
+			<key>CFBundleTypeRole</key><string>Editor</string>
+			<key>LSHandlerRank</key><string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array><string>com.adobe.pdf</string></array>
+		</dict>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>El celular envía la firma a PepePDF por la red local.</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>PepePDF usa Word y Vista Previa para convertir e imprimir documentos.</string>
+</dict>
+</plist>

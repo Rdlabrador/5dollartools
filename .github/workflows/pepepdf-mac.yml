@@ -1,0 +1,157 @@
+# PepePDF para Mac: compila, arma el .app, lo firma ad-hoc, crea los .dmg
+# (Apple Silicon e Intel) y hace pruebas de humo en un Mac de GitHub.
+name: PepePDF Mac
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'firmar-pdf/**'
+      - '.github/workflows/pepepdf-mac.yml'
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  build:
+    name: Armar ${{ matrix.nombre }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: AppleSilicon
+            runner: macos-15          # arm64
+            rid: osx-arm64
+          - nombre: Intel
+            runner: macos-15-intel    # x64
+            rid: osx-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Compilar (publish self-contained)
+        run: >
+          dotnet publish firmar-pdf/mac/PepePDF.Mac.csproj
+          -c Release -r ${{ matrix.rid }} --self-contained
+          -o publish/${{ matrix.rid }}
+
+      - name: Armar .app, firmar y crear .dmg
+        run: bash firmar-pdf/mac/empaquetar/armar-app.sh ${{ matrix.rid }} publish/${{ matrix.rid }} salida
+
+      - name: Subir .dmg
+        uses: actions/upload-artifact@v4
+        with:
+          name: PepePDF-Mac-${{ matrix.nombre }}
+          path: salida/*.dmg
+          if-no-files-found: error
+
+  pruebas:
+    name: Pruebas de humo (arm64)
+    needs: build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: PepePDF-Mac-AppleSilicon
+          path: dmg
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Instalar Pillow (para generar archivos de prueba)
+        run: python -m pip install pillow
+
+      - name: Generar PDF e imagen de ejemplo
+        run: |
+          mkdir -p prueba
+          python - <<'PY'
+          from PIL import Image, ImageDraw, ImageFont
+          def fuente(n):
+              for ruta in ("/System/Library/Fonts/Helvetica.ttc",
+                           "/System/Library/Fonts/Supplemental/Arial.ttf"):
+                  try:
+                      return ImageFont.truetype(ruta, n)
+                  except OSError:
+                      pass
+              return ImageFont.load_default(n)
+          im = Image.new("RGB", (1400, 400), "white")
+          ImageDraw.Draw(im).text((60, 120), "Hola PepePDF 2026", fill="black", font=fuente(110))
+          im.save("prueba/texto.png")
+          im.save("prueba/ejemplo.pdf")
+          PY
+
+      - name: (a) Abrir la app con un PDF y capturar pantalla
+        run: |
+          hdiutil attach dmg/PepePDF-Mac-AppleSilicon.dmg -mountpoint /Volumes/PepePDF -nobrowse -quiet
+          mkdir -p "$RUNNER_TEMP/app"
+          cp -R /Volumes/PepePDF/PepePDF.app "$RUNNER_TEMP/app/"
+          hdiutil detach /Volumes/PepePDF -quiet
+          "$RUNNER_TEMP/app/PepePDF.app/Contents/MacOS/PepePDF" "$PWD/prueba/ejemplo.pdf" \
+            > prueba/app.log 2>&1 &
+          echo $! > prueba/app.pid
+          sleep 20
+          screencapture -x prueba/captura.png || echo "No se pudo capturar la pantalla"
+          if kill -0 "$(cat prueba/app.pid)" 2>/dev/null; then
+            echo "La app sigue viva tras 20 s"
+            kill "$(cat prueba/app.pid)" || true
+          else
+            echo "La app se cerró sola. Registro:"; cat prueba/app.log
+            exit 1
+          fi
+
+      - name: Subir captura y registro
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PepePDF-Mac-captura
+          path: |
+            prueba/captura.png
+            prueba/app.log
+          if-no-files-found: warn
+
+      - name: (b) OCR con Vision (JXA)
+        if: hashFiles('firmar-pdf/mac/scripts/ocr.js') != ''
+        run: |
+          osascript -l JavaScript firmar-pdf/mac/scripts/ocr.js prueba/texto.png es-ES | tee prueba/ocr.json
+          grep -qi "PepePDF" prueba/ocr.json || { echo "El OCR no devolvió el texto esperado"; exit 1; }
+
+      - name: (c) Convertir .docx con LibreOffice
+        if: hashFiles('firmar-pdf/mac/scripts/**') != ''
+        continue-on-error: true
+        run: |
+          brew install --cask libreoffice
+          # .docx mínimo generado aquí; si existe uno en empaquetar/pruebas se usa ese
+          python - <<'PY'
+          import glob, shutil, zipfile
+          previos = glob.glob("firmar-pdf/mac/empaquetar/pruebas/*.docx")
+          if previos:
+              shutil.copy(previos[0], "prueba/doc.docx")
+          else:
+              with zipfile.ZipFile("prueba/doc.docx", "w") as z:
+                  z.writestr("[Content_Types].xml", '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')
+                  z.writestr("_rels/.rels", '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')
+                  z.writestr("word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Documento de prueba PepePDF</w:t></w:r></w:p></w:body></w:document>')
+          PY
+          /Applications/LibreOffice.app/Contents/MacOS/soffice --headless --convert-to pdf --outdir prueba prueba/doc.docx
+          test -s prueba/doc.pdf
+
+      - name: Subir resultados de las pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PepePDF-Mac-pruebas
+          path: |
+            prueba/ocr.json
+            prueba/doc.pdf
+          if-no-files-found: ignore

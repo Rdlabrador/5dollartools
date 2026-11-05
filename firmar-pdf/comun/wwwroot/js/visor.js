@@ -61,7 +61,7 @@ $('bZoomMenos').onclick = () => zoom(-1);
 $('bAncho').onclick = ajustarAncho;
 $('zoomTxt').onclick = ajustarAncho;
 $('zoomTxt').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ajustarAncho(); } };
-$('contenedor').addEventListener('wheel', (e) => { if (e.ctrlKey) { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); } }, { passive: false });
+$('contenedor').addEventListener('wheel', (e) => { if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); } }, { passive: false });
 let tResize = 0;
 new ResizeObserver(() => { if (!E.pdf || !E.ajustar) return; cancelAnimationFrame(tResize); tResize = requestAnimationFrame(() => { pdfViewer.currentScaleValue = 'page-width'; }); }).observe($('contenedor'));
 

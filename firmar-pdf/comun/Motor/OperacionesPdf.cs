@@ -1,6 +1,3 @@
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.Security.Cryptography;
 using PdfSharp.Pdf;
 using PdfSharp.Pdf.Advanced;
@@ -206,7 +203,7 @@ public static class OperacionesPdf
 
     // ───────────── Compresión ─────────────
 
-    public static ResultadoCompresion Comprimir(byte[] pdf, NivelCompresion nivel)
+    public static ResultadoCompresion Comprimir(byte[] pdf, NivelCompresion nivel, IPlataforma plataforma)
     {
         int maxDpi = nivel == NivelCompresion.Ligera ? 200 : 150;
         long calidad = nivel == NivelCompresion.Ligera ? 80 : 65;
@@ -225,7 +222,7 @@ public static class OperacionesPdf
                     {
                         usos.TryGetValue(id, out var ancho);
                         double pts = ancho > 0 ? ancho : Math.Max(page.Width.Point, page.Height.Point);
-                        if (RecomprimirImagen(dict, pts, maxDpi, calidad)) hechas++;
+                        if (RecomprimirImagen(dict, pts, maxDpi, calidad, plataforma)) hechas++;
                     }
                     catch { /* imagen rara: se deja como está */ }
                 }
@@ -295,7 +292,7 @@ public static class OperacionesPdf
         n[4]*c[0]+n[5]*c[2]+c[4], n[4]*c[1]+n[5]*c[3]+c[5],
     };
 
-    static bool RecomprimirImagen(PdfDictionary d, double anchoPuntos, int maxDpi, long calidad)
+    static bool RecomprimirImagen(PdfDictionary d, double anchoPuntos, int maxDpi, long calidad, IPlataforma plataforma)
     {
         var e = d.Elements;
         if (e.GetBoolean("/ImageMask") || e.ContainsKey("/Mask") || e.ContainsKey("/Decode")) return false;
@@ -312,48 +309,40 @@ public static class OperacionesPdf
         if (pixeles > MaxPixeles || pixeles * comps > MaxBytesImagen) return false;
 
         byte[] original = d.Stream.Value;
-        Bitmap? origen = null;
-        try
+        // Datos para la plataforma: el JPEG tal cual (DCT) o los píxeles crudos (Flate, 1 o 3 componentes)
+        byte[] fuente;
+        bool esJpeg = filtro == "/DCTDecode";
+        if (esJpeg) fuente = original;
+        else
         {
-            if (filtro == "/DCTDecode")
-            {
-                using var ms = new MemoryStream(original);
-                using var img = Image.FromStream(ms, false, false);
-                if (img.Width != w || img.Height != h) return false;
-                origen = new Bitmap(img);
-            }
-            else
-            {
-                if (e.GetInteger("/BitsPerComponent") != 8) return false;
-                if (!ParametrosFlateSeguros(d, w, comps, out int predictor)) return false;
-                // Descompresión propia con tope: nunca más de lo que declaran las dimensiones.
-                long fila = (long)w * comps;
-                long maxSalida = predictor >= 10 ? (fila + 1) * h : fila * h;
-                byte[]? crudo = InflarConTope(original, maxSalida);
-                if (crudo == null) return false;
-                if (predictor >= 10) crudo = DeshacerPredictor(crudo, h, w, comps);
-                if (crudo == null || crudo.LongLength < fila * h) return false;
-                origen = DesdeCrudo(crudo, w, h, comps);
-            }
-
-            double ladoMax = Math.Max(1, anchoPuntos / 72.0 * maxDpi);
-            double mayor = Math.Max(w, h);
-            double esc = mayor > ladoMax ? ladoMax / mayor : 1.0;
-            int nw = Math.Max(1, (int)Math.Round(w * esc)), nh = Math.Max(1, (int)Math.Round(h * esc));
-
-            byte[] jpg = CodificarJpeg(origen, nw, nh, calidad);
-            if (jpg.Length >= original.Length) return false;
-
-            d.Stream.Value = jpg;
-            e.SetInteger("/Width", nw);
-            e.SetInteger("/Height", nh);
-            e.SetName("/ColorSpace", "/DeviceRGB");
-            e.SetInteger("/BitsPerComponent", 8);
-            e.SetName("/Filter", "/DCTDecode");
-            e.Remove("/DecodeParms");
-            return true;
+            if (e.GetInteger("/BitsPerComponent") != 8) return false;
+            if (!ParametrosFlateSeguros(d, w, comps, out int predictor)) return false;
+            // Descompresión propia con tope: nunca más de lo que declaran las dimensiones.
+            long fila = (long)w * comps;
+            long maxSalida = predictor >= 10 ? (fila + 1) * h : fila * h;
+            byte[]? crudo = InflarConTope(original, maxSalida);
+            if (crudo == null) return false;
+            if (predictor >= 10) crudo = DeshacerPredictor(crudo, h, w, comps);
+            if (crudo == null || crudo.LongLength < fila * h) return false;
+            fuente = crudo;
         }
-        finally { origen?.Dispose(); }
+
+        double ladoMax = Math.Max(1, anchoPuntos / 72.0 * maxDpi);
+        double mayor = Math.Max(w, h);
+        double esc = mayor > ladoMax ? ladoMax / mayor : 1.0;
+        int nw = Math.Max(1, (int)Math.Round(w * esc)), nh = Math.Max(1, (int)Math.Round(h * esc));
+
+        byte[]? jpg = plataforma.RecomprimirJpeg(fuente, esJpeg, w, h, comps, nw, nh, (int)calidad);
+        if (jpg == null || jpg.Length >= original.Length) return false;
+
+        d.Stream.Value = jpg;
+        e.SetInteger("/Width", nw);
+        e.SetInteger("/Height", nh);
+        e.SetName("/ColorSpace", "/DeviceRGB");
+        e.SetInteger("/BitsPerComponent", 8);
+        e.SetName("/Filter", "/DCTDecode");
+        e.Remove("/DecodeParms");
+        return true;
     }
 
     static string FiltroUnico(PdfDictionary d)
@@ -462,48 +451,5 @@ public static class OperacionesPdf
             }
         }
         return res;
-    }
-
-    static Bitmap DesdeCrudo(byte[] crudo, int w, int h, int comps)
-    {
-        var bmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-        BitmapData? bd = null;
-        try
-        {
-            bd = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-            var fila = new byte[w * 3];
-            for (int y = 0; y < h; y++)
-            {
-                int s = y * w * comps;
-                for (int x = 0; x < w; x++)
-                {
-                    if (comps == 3) { fila[x * 3] = crudo[s + x * 3 + 2]; fila[x * 3 + 1] = crudo[s + x * 3 + 1]; fila[x * 3 + 2] = crudo[s + x * 3]; }
-                    else fila[x * 3] = fila[x * 3 + 1] = fila[x * 3 + 2] = crudo[s + x];
-                }
-                System.Runtime.InteropServices.Marshal.Copy(fila, 0, bd.Scan0 + y * bd.Stride, w * 3);
-            }
-        }
-        catch { bmp.Dispose(); throw; }
-        finally { if (bd != null && bmp != null) { try { bmp.UnlockBits(bd); } catch { } } }
-        return bmp;
-    }
-
-    static byte[] CodificarJpeg(Bitmap origen, int nw, int nh, long calidad)
-    {
-        using var destino = new Bitmap(nw, nh, PixelFormat.Format24bppRgb);
-        using (var g = Graphics.FromImage(destino))
-        {
-            g.Clear(Color.White);
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-            g.CompositingQuality = CompositingQuality.HighQuality;
-            g.DrawImage(origen, new Rectangle(0, 0, nw, nh), 0, 0, origen.Width, origen.Height, GraphicsUnit.Pixel);
-        }
-        var codec = ImageCodecInfo.GetImageEncoders().First(c => c.FormatID == ImageFormat.Jpeg.Guid);
-        using var ps = new EncoderParameters(1);
-        ps.Param[0] = new EncoderParameter(System.Drawing.Imaging.Encoder.Quality, calidad);
-        using var ms = new MemoryStream();
-        destino.Save(ms, codec, ps);
-        return ms.ToArray();
     }
 }
