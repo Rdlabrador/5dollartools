@@ -37,10 +37,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Compilar (publish self-contained)
+      - name: Compilar (un solo ejecutable + bibliotecas nativas; macOS no acepta .dll sueltas al firmar)
         run: >
           dotnet publish firmar-pdf/mac/PepePDF.Mac.csproj
           -c Release -r ${{ matrix.rid }} --self-contained
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false -p:DebugType=none
           -o publish/${{ matrix.rid }}
 
       - name: Armar .app, firmar y crear .dmg

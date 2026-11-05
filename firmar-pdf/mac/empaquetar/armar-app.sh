@@ -23,6 +23,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 # Contenido: todo el publish junto al ejecutable
 cp -R "$PUBLISH/." "$APP/Contents/MacOS/"
+# en Contents/MacOS solo puede haber código firmable: fuera símbolos de depuración y similares
+find "$APP/Contents/MacOS" -type f \( -name '*.pdb' -o -name '*.dbg' \) -delete
 chmod +x "$APP/Contents/MacOS/PepePDF"
 cp "$AQUI/Info.plist" "$APP/Contents/Info.plist"
 printf 'APPL????' > "$APP/Contents/PkgInfo"
