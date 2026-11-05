@@ -103,6 +103,7 @@ jobs:
           echo $! > prueba/app.pid
           sleep 20
           screencapture -x prueba/captura.png || echo "No se pudo capturar la pantalla"
+          sleep 15; screencapture -x prueba/captura2.png || true
           if kill -0 "$(cat prueba/app.pid)" 2>/dev/null; then
             echo "La app sigue viva tras 20 s"
           else
@@ -133,6 +134,7 @@ jobs:
           name: PepePDF-Mac-captura
           path: |
             prueba/captura.png
+            prueba/captura2.png
             prueba/app.log
           if-no-files-found: warn
 
