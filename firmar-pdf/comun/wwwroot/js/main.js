@@ -24,7 +24,9 @@ import './miniaturas.js';
 import './proteger.js';
 import './convertir.js';
 
-traducirDOM();
-pintarIconos();
-botones();
-post({ tipo: 'listo' });
+// window.__arranque: marca de avance (la lee el diagnóstico de la prueba de Mac)
+window.__arranque = 'modulos';
+traducirDOM(); window.__arranque = 'traducido';
+pintarIconos(); window.__arranque = 'iconos';
+botones(); window.__arranque = 'botones';
+post({ tipo: 'listo' }); window.__arranque = 'listo';

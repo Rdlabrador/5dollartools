@@ -1,6 +1,6 @@
 ; Instalador de PepePDF (Inno Setup 6). Toma el exe de la carpeta publish cada vez que se compila.
 #define AppName "PepePDF"
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 #define Publisher "5dollartools"
 #define AppUrl "https://github.com/Rdlabrador/5dollartools"
 #define ExePublicado "..\src\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\PepePDF.exe"

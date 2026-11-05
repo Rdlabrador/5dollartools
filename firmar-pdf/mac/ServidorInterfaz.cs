@@ -39,7 +39,8 @@ sealed class ServidorInterfaz : IAsyncDisposable
         "m('navegador '+navigator.userAgent);},3000);" +
         "['log','warn','error'].forEach(function(k){var o=console[k];console[k]=function(){try{m('consola '+k+': '+[].map.call(arguments,String).join(' ').slice(0,300));}catch(e){}return o.apply(console,arguments);};});" +
         "document.addEventListener('DOMContentLoaded',function(){m('DOMContentLoaded');});addEventListener('load',function(){m('load');});" +
-        "setTimeout(function(){var f=document.getElementById('bFirmar');m('8s estado='+document.readyState+' dataic='+document.querySelectorAll('[data-ic]').length+' hijos1='+(document.querySelector('[data-ic]')||{}).childElementCount+' firmar=['+(f&&f.textContent.trim())+'] lang='+document.documentElement.lang+' body='+document.body.dataset.estado);},8000);" +
+        "setTimeout(function(){var f=document.getElementById('bFirmar');m('8s estado='+document.readyState+' dataic='+document.querySelectorAll('[data-ic]').length+' hijos1='+(document.querySelector('[data-ic]')||{}).childElementCount+' firmar=['+(f&&f.textContent.trim())+'] lang='+document.documentElement.lang+' body='+document.body.dataset.estado+' arranque='+window.__arranque);},8000);" +
+        "setTimeout(function(){import('./js/iconos.js').then(function(x){try{x.pintarIconos();m('5s manual iconos='+document.querySelectorAll('[data-ic] svg').length);}catch(e){m('5s manual FALLA '+e);}});},5000);" +
         "setTimeout(function(){m('8s iconos='+document.querySelectorAll('[data-ic] svg').length+' chrome.webview='+typeof (window.chrome&&window.chrome.webview));},8000);})();</script>";
 
     readonly string token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
