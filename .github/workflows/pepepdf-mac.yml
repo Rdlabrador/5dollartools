@@ -101,7 +101,7 @@ jobs:
           PEPEPDF_PRUEBA=1 "$RUNNER_TEMP/app/PepePDF.app/Contents/MacOS/PepePDF" "$PWD/prueba/ejemplo.pdf" \
             > prueba/app.log 2>&1 &
           echo $! > prueba/app.pid
-          sleep 20
+          sleep 75
           screencapture -x prueba/captura.png || echo "No se pudo capturar la pantalla"
           sleep 15; screencapture -x prueba/captura2.png || true
           if kill -0 "$(cat prueba/app.pid)" 2>/dev/null; then
