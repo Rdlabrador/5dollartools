@@ -101,7 +101,7 @@ jobs:
           PEPEPDF_PRUEBA=1 "$RUNNER_TEMP/app/PepePDF.app/Contents/MacOS/PepePDF" "$PWD/prueba/ejemplo.pdf" \
             > prueba/app.log 2>&1 &
           echo $! > prueba/app.pid
-          sleep 75
+          sleep 25
           screencapture -x prueba/captura.png || echo "No se pudo capturar la pantalla"
           sleep 15; screencapture -x prueba/captura2.png || true
           if kill -0 "$(cat prueba/app.pid)" 2>/dev/null; then
@@ -126,6 +126,9 @@ jobs:
           echo "--- diagnóstico de la interfaz ---"; grep 'DIAG' prueba/app.log | head -80 || true
           ICONOS="$(grep -o 'iconos=[0-9]*' prueba/app.log | head -1 | cut -d= -f2)"
           [ "${ICONOS:-0}" -gt 0 ] || { echo "La interfaz no dibujó sus íconos: el JavaScript no corrió"; exit 1; }
+          grep -q "arranque=listo" prueba/app.log || { echo "La interfaz no terminó de arrancar"; exit 1; }
+          grep -q "body=abierto" prueba/app.log || { echo "El PDF de ejemplo no se abrió"; exit 1; }
+          ! grep -E "DIAG js: DIAG (error|rechazo)" prueba/app.log || { echo "Hubo errores de JavaScript"; exit 1; }
 
       - name: Subir captura y registro
         if: always()

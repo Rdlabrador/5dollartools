@@ -34,13 +34,9 @@ sealed class ServidorInterfaz : IAsyncDisposable
         "m('inicio external='+typeof window.external+' recv='+typeof (window.external&&window.external.receiveMessage));" +
         "addEventListener('error',function(e){m('error '+e.message+' @'+e.filename+':'+e.lineno);},true);" +
         "addEventListener('unhandledrejection',function(e){m('rechazo '+(e.reason&&(e.reason.stack||e.reason)));});" +
-        "setTimeout(function(){var l=['js/anotar.js','js/buscar.js','js/convertir.js','js/dibujo.js','js/documento.js','js/elementos.js','js/estado.js','js/firmar.js','js/firmas.js','js/fotomovil.js','js/guardar.js','js/herramientas.js','js/historial.js','js/i18n.js','js/iconos.js','js/marcas.js','js/menus.js','js/miniaturas.js','js/ocultos.js','js/paginas.js','js/proteger.js','js/pruebas.js','js/puente.js','js/teclado.js','js/textos-index.js','js/util.js','js/visor.js','js/main.js?v=2'];" +
-        "(function sig(i){if(i>=l.length){m('fin importaciones arranque='+window.__arranque);return;}var listo=false;setTimeout(function(){if(!listo){m('import COLGADO '+l[i]);sig(i+1);}},2500);import('./'+l[i]).then(function(){if(listo)return;listo=true;m('import ok '+l[i]);sig(i+1);},function(e){if(listo)return;listo=true;m('import FALLA '+l[i]+': '+e+' '+(e&&e.stack||''));sig(i+1);});})(0);" +
-        "m('navegador '+navigator.userAgent);},3000);" +
         "['log','warn','error'].forEach(function(k){var o=console[k];console[k]=function(){try{m('consola '+k+': '+[].map.call(arguments,String).join(' ').slice(0,300));}catch(e){}return o.apply(console,arguments);};});" +
         "document.addEventListener('DOMContentLoaded',function(){m('DOMContentLoaded');});addEventListener('load',function(){m('load');});" +
         "setTimeout(function(){var f=document.getElementById('bFirmar');m('8s estado='+document.readyState+' dataic='+document.querySelectorAll('[data-ic]').length+' hijos1='+(document.querySelector('[data-ic]')||{}).childElementCount+' firmar=['+(f&&f.textContent.trim())+'] lang='+document.documentElement.lang+' body='+document.body.dataset.estado+' arranque='+window.__arranque);},8000);" +
-        "setTimeout(function(){import('./js/iconos.js').then(function(x){try{x.pintarIconos();m('5s manual iconos='+document.querySelectorAll('[data-ic] svg').length);}catch(e){m('5s manual FALLA '+e);}});},5000);" +
         "setTimeout(function(){m('8s iconos='+document.querySelectorAll('[data-ic] svg').length+' chrome.webview='+typeof (window.chrome&&window.chrome.webview));},8000);})();</script>";
 
     readonly string token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
