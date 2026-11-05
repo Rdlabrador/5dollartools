@@ -358,3 +358,18 @@ body.ocultando .pdfViewer .page .textLayer { user-select: none; -webkit-user-sel
   #barra #bAbrir .tx, #barra #bGuardar .tx { display: none; }
   #barra #bAbrir, #barra #bGuardar { padding: 8px 12px; min-width: 48px; }
 }
+
+/* pantallas angostas (ventanas chicas, Mac de 1024 px): Firmar algo más compacto y sin los botones repetidos.
+   "Ajustar" sigue disponible tocando el porcentaje del zoom. */
+@media (max-width: 1199px) {
+  #barra { gap: 6px; padding: 8px 10px; }
+  #barra #bFirmar { padding: 6px 22px 6px 18px; font-size: 25px; margin-right: 4px; }
+  #barra #bAncho { display: none; }
+  #barra #bIdioma .ic { display: none; }
+  #barra .sep { margin: 6px 0; }
+}
+@media (max-width: 979px) {
+  #barra #bFirmar { padding: 6px 16px 6px 14px; font-size: 22px; gap: 8px; }
+  #barra #bRellenar { padding: 8px 12px; }
+  #barra #bRellenar [data-ic="abajo"] { display: none; }
+}
