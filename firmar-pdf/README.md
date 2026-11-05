@@ -1,29 +1,106 @@
 # PepePDF
 
-Programa para Windows que permite abrir un PDF, llenarlo, firmarlo, anotarlo, cambiarle las páginas y guardarlo.
+Programa para Windows y Mac que permite abrir un PDF, llenarlo, firmarlo, anotarlo, cambiarle las páginas y guardarlo.
 Funciona sin internet. Está en español e inglés.
 
-**Descargar el instalador:** https://github.com/Rdlabrador/5dollartools/raw/main/firmar-pdf/descargar/PepePDF-Setup.exe
+**Descargar para Windows:** https://github.com/Rdlabrador/5dollartools/raw/main/firmar-pdf/descargar/PepePDF-Setup.exe
 (No pide permisos de administrador. Crea el acceso directo del escritorio y del menú Inicio, y agrega PepePDF a "Abrir con" para los PDF.
 Para desinstalarlo: Configuración → Aplicaciones → PepePDF. Las firmas guardadas no se borran.)
+
+**Descargar para Mac:** vea la sección "Instalar en Mac" más abajo. Enlaces directos:
+
+- Mac con chip Apple (M1, M2, M3, M4…): https://github.com/Rdlabrador/5dollartools/raw/main/firmar-pdf/descargar/PepePDF-Mac-AppleSilicon.dmg
+- Mac con Intel: https://github.com/Rdlabrador/5dollartools/raw/main/firmar-pdf/descargar/PepePDF-Mac-Intel.dmg
+
 Para rearmar el instalador después de cambiar el código: `instalador\crear-instalador.bat`.
 
 Parte de la suite 5dollartools. Se distribuye como programa, no está en la web.
+
+## Novedades en 1.2
+
+- Versión para **Mac** (chip Apple o Intel). Vea "Instalar en Mac".
+- El botón **Firmar** es más grande y se ve mejor.
+- Cada herramienta tiene su color pastel.
+- El botón **Guardar** ahora dice **Guardar como…**.
+- La barra de arriba cabe en pantallas más angostas.
+- Al exportar a imagen, Word o texto, el diálogo de guardar ofrece el tipo correcto. Antes siempre ofrecía PDF.
 
 ---
 
 # Parte 1: Cómo usarlo
 
-## Antes de empezar
+## Antes de empezar (Windows)
 
 1. Instale el programa con `PepePDF-Setup.exe` (doble clic y siga los pasos). Después ábralo con el acceso directo **PepePDF** del escritorio o del menú Inicio.
 2. Si Windows muestra una advertencia azul al instalar, pulse "Más información" y luego "Ejecutar de todas formas".
 3. Si el programa dice que falta el componente **WebView2**, pulse el enlace que aparece.
    Instálelo y vuelva a abrir el programa. En Windows 10 y 11 al día, normalmente ya está.
 
+## Instalar en Mac
+
+Esta parte es para quien tiene un Mac (computador de Apple). Requiere macOS 11 o más nuevo.
+Son unos pocos pasos. Se hacen una sola vez.
+
+### Paso 1: saber qué chip tiene su Mac
+
+1. Pulse el menú **Apple** (el símbolo de la manzana, arriba a la izquierda).
+2. Pulse **Acerca de este Mac**.
+3. Mire la línea que dice "Chip" o "Procesador":
+   - Si dice **Chip Apple M…**, use el enlace **PepePDF-Mac-AppleSilicon.dmg**.
+   - Si dice **Procesador Intel**, use el enlace **PepePDF-Mac-Intel.dmg**.
+
+Para saber qué versión de macOS tiene, mírela en esa misma ventana.
+
+### Paso 2: descargar e instalar
+
+1. Abra el enlace que le corresponde (vea "Descargar para Mac" arriba). Se descarga un archivo que termina en **.dmg**. Normalmente queda en la carpeta **Descargas**.
+2. Haga doble clic en el archivo .dmg. Se abre una ventana con el icono de PepePDF y una carpeta que dice **Aplicaciones**.
+3. Arrastre el icono de **PepePDF** hasta la carpeta **Aplicaciones**.
+4. Cierre esa ventana.
+
+### Paso 3: abrir por primera vez
+
+PepePDF no está registrado con Apple. Por eso macOS pide un permiso extra. Solo se hace la primera vez.
+
+**Si su Mac tiene macOS 15 (Sequoia) o más nuevo:**
+
+1. Abra la carpeta **Aplicaciones** y haga doble clic en **PepePDF**.
+2. Aparece un aviso que dice que no se puede verificar. Pulse **Listo**.
+3. Abra **Ajustes del Sistema** (menú Apple → **Ajustes del Sistema**).
+4. Pulse **Privacidad y seguridad**.
+5. Baje hasta la sección **Seguridad**. Pulse **Abrir de todos modos**.
+6. Escriba la clave de su Mac (la misma que usa para desbloquearlo).
+7. Pulse **Abrir**.
+
+**Si su Mac tiene macOS 11, 12, 13 o 14:**
+
+1. Abra la carpeta **Aplicaciones**.
+2. Haga clic derecho (o **Control + clic**) sobre **PepePDF**.
+3. Pulse **Abrir**.
+4. Aparece un aviso. Pulse **Abrir** otra vez.
+
+Después de esto, abra PepePDF como cualquier programa: doble clic en **Aplicaciones**.
+
+### Desinstalar en Mac
+
+1. Abra la carpeta **Aplicaciones**.
+2. Arrastre **PepePDF** a la **Papelera**.
+
+Los datos quedan en la carpeta `~/Library/Application Support/PepePDF`. La carpeta Biblioteca viene oculta en su usuario.
+
+### Diferencias en Mac
+
+- **Teclas**: donde el texto dice **Ctrl**, use **⌘** (la tecla con el símbolo ⌘, junto a la barra espaciadora).
+- **Imprimir**: se abre el panel de impresión de macOS. Si no se abre, el documento se abre en **Vista Previa**. Imprima desde allí con **⌘ + P**.
+- **Reconocimiento de texto (OCR)**: usa el reconocimiento de texto del Mac. Para español se recomienda macOS 13 o más nuevo.
+- **Word, Excel o PowerPoint a PDF**: necesita **Microsoft Office para Mac**, o **LibreOffice** (gratis, en libreoffice.org).
+- **Firmar o agregar fotos con el celular**: la primera vez, macOS puede pedir permiso de **red local** o del **firewall**. Acéptelo.
+- **Firmas guardadas**: quedan guardadas en ese Mac.
+- Lo que dice **Windows** (WebView2, Abrir con, Firewall) no aplica en Mac.
+
 ## Cambiar el idioma
 
-1. Al abrir, el programa usa el idioma de Windows: español o inglés.
+1. Al abrir, el programa usa el idioma del computador: español o inglés.
 2. Para cambiarlo, pulse el botón con el **globo** que está al final de la barra de arriba. Alterna entre **ES** y **EN**.
 3. El documento no se cierra. El programa recuerda la elección la próxima vez.
 
@@ -38,7 +115,7 @@ Notas:
 El programa tiene fondo claro y botones con íconos de línea, en azul tinta. La barra de arriba está en una sola fila:
 
 - **Abrir**: abre un PDF.
-- **Guardar**: guarda el documento.
+- **Guardar como…**: guarda el documento.
 - **Imprimir**: envía el documento a la impresora.
 - **Firmar**: pone su firma. Es el botón grande.
 - **Rellenar**: abre un menú con **Texto**, **Fecha**, **Anotar** y **Foto del celular**.
@@ -59,7 +136,7 @@ Hay tres formas:
 
 1. Pulse el botón **Abrir** y busque el archivo.
 2. Arrastre el PDF hasta la ventana del programa.
-3. Haga clic derecho sobre el PDF en el Explorador de Windows, elija **Abrir con** y luego **PepePDF**.
+3. (Windows) Haga clic derecho sobre el PDF en el Explorador de Windows, elija **Abrir con** y luego **PepePDF**.
 
 Si el programa está vacío, también puede empezar con **Herramientas**, y elegir **Unir PDF** o **Imágenes a PDF**. Así crea un documento nuevo.
 
@@ -71,7 +148,7 @@ Si el programa está vacío, también puede empezar con **Herramientas**, y eleg
 
 ## Buscar una palabra
 
-1. Pulse **Buscar** (o **Ctrl + F**).
+1. Pulse **Buscar** (o **Ctrl + F**; en Mac, **⌘ + F**).
 2. Escriba la palabra.
 3. Pulse **Siguiente** o **Anterior** para ir de un resultado a otro. También sirve la tecla **Enter**.
 4. Para cerrar, pulse **Cerrar** o la tecla **Esc**.
@@ -221,11 +298,11 @@ Pulse **Herramientas**. Las acciones están en cuatro grupos.
   - Es una conversión aproximada. Las tablas y las columnas pueden cambiar. El color del texto no se conserva.
 - **Hacer el PDF buscable (OCR)**: sirve para documentos escaneados. Así se puede buscar y copiar el texto.
   - Primero le pregunta en qué idioma está el documento (español o inglés).
-  - Necesita ese idioma instalado en Windows, con **Reconocimiento de texto**.
+  - Necesita ese idioma instalado en Windows, con **Reconocimiento de texto**. En Mac se usa el reconocimiento de texto del Mac (ver **Diferencias en Mac**).
 - **Copiar todo el texto**: copia el texto para pegarlo en otro programa.
 - **Guardar como texto (.txt)**: guarda solo el texto en un archivo simple.
 - **Word, Excel o PowerPoint a PDF**: convierte esos archivos en PDF.
-  - Necesita tener Office instalado en el computador.
+  - Necesita tener Office instalado en el computador. En Mac, también sirve LibreOffice (gratis).
   - No acepta archivos con macros ni con contraseña. Las macros quedan desactivadas.
 - **Exportar a imagen (JPG/PNG)** y **Imágenes a PDF**: igual que en Páginas.
 
@@ -245,28 +322,30 @@ Notas importantes:
 
 ## Deshacer y rehacer
 
-- Para deshacer, pulse **Ctrl + Z** (o la flecha **↶**, abajo).
-- Para rehacer, pulse **Ctrl + Y** (o la flecha **↷**, abajo).
+- Para deshacer, pulse **Ctrl + Z** (o la flecha **↶**, abajo). En Mac, **⌘ + Z**.
+- Para rehacer, pulse **Ctrl + Y** (o la flecha **↷**, abajo). En Mac, **⌘ + Y**.
 
 Sirve también para los cambios de páginas.
 
 ## Guardar
 
-Pulse **Guardar**. Aparecen dos opciones:
+Pulse **Guardar como…**. Aparecen dos opciones:
 
 - **Guardar**: guarda el PDF y se puede seguir editando.
 - **Guardar versión final**: guarda el PDF cerrado. Después no se puede cambiar nada.
   Use esta opción cuando termine.
 
-El programa le pide dónde guardar el archivo. También funciona **Ctrl + S**.
+El programa le pide dónde guardar el archivo. También funciona **Ctrl + S** (en Mac, **⌘ + S**).
 
 Si intenta cerrar la ventana con cambios sin guardar, el programa le pregunta antes.
 
 ## Imprimir
 
 1. Pulse **Imprimir**.
-2. Se abre la ventana de impresión de Windows.
+2. Se abre la ventana de impresión de Windows (en Mac, la de macOS).
 3. Elija la impresora y pulse **Imprimir**.
+
+En Mac, si no se abre la ventana de impresión, el documento se abre en **Vista Previa**. Imprima desde allí con **⌘ + P**.
 
 ## Problemas comunes
 
@@ -282,6 +361,10 @@ Si intenta cerrar la ventana con cambios sin guardar, el programa le pregunta an
 | Word, Excel o PowerPoint no convierte | Revise que Office esté instalado. El archivo no debe tener macros ni contraseña. |
 | Falta WebView2 | Pulse el enlace que aparece y vuelva a abrir el programa. |
 | Quiero el programa en otro idioma | Pulse el globo (ES / EN) al final de la barra de arriba. |
+| En Mac, dice que no se puede verificar | Es normal la primera vez. Siga el **Paso 3** de "Instalar en Mac". |
+| En Mac, no se abre la ventana de impresión | Abra el documento en **Vista Previa** e imprima con **⌘ + P**. |
+| En Mac, el OCR no reconoce bien el español | Use macOS 13 o más nuevo y revise el idioma elegido al empezar. |
+| En Mac, Word, Excel o PowerPoint no convierte | Instale **Microsoft Office para Mac** o **LibreOffice** (gratis). |
 
 ## Límites
 
@@ -298,8 +381,9 @@ Si intenta cerrar la ventana con cambios sin guardar, el programa le pregunta an
 
 ## Requisitos
 
-- Windows 10 u 11 actualizado.
-- WebView2 Runtime (viene con Windows actualizado).
+- Windows 10 u 11 actualizado (versión Windows).
+- WebView2 Runtime (Windows; viene con Windows actualizado).
+- Versión Mac: macOS 11 o más nuevo, con chip Apple o Intel.
 - Para compilar: .NET 8 SDK.
 - Opcionales, para ciertas funciones:
   - Office instalado (para Word, Excel o PowerPoint a PDF).
@@ -313,6 +397,9 @@ firmar-pdf\
   CONTRATO.md                mensajes entre C# y la interfaz (leer antes de cambiar algo)
   (Desde la separación en `comun\` y `src\`: ServidorMovil, Recursos, Nombres, Textos, Motor\OperacionesPdf, Motor\Word, Puente,
    IPlataforma y wwwroot viven en `comun\`; en `src\` quedan Program, VentanaPrincipal, PlataformaWindows, Impresion, Motor\Ocr, Motor\Office. Ver `comun\PLATAFORMA.md`.)
+  comun\                     parte compartida por Windows y Mac (ver comun\PLATAFORMA.md)
+  mac\                       versión Mac (con Photino)
+  instalador\                crear-instalador.bat: arma el instalador de Windows
   src\
     FirmarPdf.csproj         target net8.0-windows10.0.19041.0 (AssemblyName: PepePDF)
     Program.cs               arranque
@@ -422,6 +509,15 @@ src\bin\Release\net8.0-windows10.0.19041.0\win-x64\publish\PepePDF.exe
 
 Tamaño aproximado: 85 MB. Es grande porque lleva dentro pdf.js y pdf-lib.
 
+## Versión Mac
+
+- `src\` es la versión Windows. `mac\` es la versión Mac (con Photino). `comun\` tiene lo que comparten las dos: ServidorMovil, Recursos, Nombres, Textos, Motor\OperacionesPdf, Motor\Word, Puente, IPlataforma y `wwwroot`. Detalle en `comun\PLATAFORMA.md`.
+- La versión Mac se arma sola en GitHub Actions con `.github\workflows\pepepdf-mac.yml`. Corre en cada cambio dentro de `firmar-pdf\`.
+- Los dos `.dmg` (Apple Silicon e Intel) quedan como **artefactos** de esa ejecución, en la pestaña Actions del repositorio.
+- Para publicarlos: bajarlos de esa ejecución (`gh run download <id>`) y copiarlos a la carpeta `descargar` (ver la línea siguiente); luego commit y push.
+- Los enlaces de descarga de la parte de usuario apuntan a `firmar-pdf\descargar\`, donde deben estar los `.dmg`.
+- El instalador de Windows se arma con `instalador\crear-instalador.bat`.
+
 ## Cómo se comunican C# y la interfaz
 
 - La interfaz (HTML/JS) manda mensajes con `window.chrome.webview.postMessage`.
@@ -479,6 +575,8 @@ La carpeta de datos es `%LOCALAPPDATA%\FirmarPDF` (conserva el nombre anterior).
 - `idioma.txt`: el idioma elegido (`es` o `en`).
 - `ultima-carpeta.txt`: la última carpeta usada.
 - `WebView2\`: los datos del navegador interno. Ahí se guarda `localStorage`, incluida la última firma.
+
+En Mac, los datos están en `~/Library/Application Support/PepePDF`.
 
 Para borrar la firma guardada, o para que el programa olvide el idioma y la última carpeta, borre esa carpeta con el programa cerrado. Se borra todo lo que guardó el programa.
 
