@@ -34,6 +34,9 @@ sealed class ServidorInterfaz : IAsyncDisposable
         "m('inicio external='+typeof window.external+' recv='+typeof (window.external&&window.external.receiveMessage));" +
         "addEventListener('error',function(e){m('error '+e.message+' @'+e.filename+':'+e.lineno);},true);" +
         "addEventListener('unhandledrejection',function(e){m('rechazo '+(e.reason&&(e.reason.stack||e.reason)));});" +
+        "setTimeout(function(){var l=['lib/pdfjs/build/pdf.min.mjs','lib/pdfjs/web/pdf_viewer.mjs','js/estado.js','js/i18n.js','js/iconos.js','js/util.js','js/puente.js','js/visor.js','js/documento.js','js/main.js'];" +
+        "(function sig(i){if(i>=l.length)return;import('./'+l[i]).then(function(){m('import ok '+l[i]);sig(i+1);},function(e){m('import FALLA '+l[i]+': '+e+' '+(e&&e.stack||''));sig(i+1);});})(0);" +
+        "m('navegador '+navigator.userAgent);},3000);" +
         "setTimeout(function(){m('8s iconos='+document.querySelectorAll('[data-ic] svg').length+' chrome.webview='+typeof (window.chrome&&window.chrome.webview));},8000);})();</script>";
 
     readonly string token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(24)).ToLowerInvariant();
