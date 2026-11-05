@@ -6,12 +6,15 @@ on run argv
 	set estabaAbierto to application "Microsoft Excel" is running
 	tell application "Microsoft Excel"
 		set display alerts to false
-		open workbook workbook file name entrada update links do not update links read only true
-		set libro to active workbook
+		set libro to missing value
 		try
+			open workbook workbook file name entrada update links do not update links read only true
+			set libro to active workbook
 			save workbook as libro filename salida file format PDF file format
 		on error m
-			close libro saving no
+			try
+				if libro is not missing value then close libro saving no
+			end try
 			if not estabaAbierto then quit
 			error m
 		end try

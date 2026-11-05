@@ -201,6 +201,13 @@ public partial class PlataformaMac
         catch { return false; }
     }
 
+    /// <summary>true si hay un proceso con ese nombre exacto en marcha (pgrep -x).</summary>
+    static bool ProcesoActivo(string nombre)
+    {
+        try { return Ejecutar("/usr/bin/pgrep", new[] { "-x", nombre }, TimeSpan.FromSeconds(5)).Codigo == 0; }
+        catch { return false; }
+    }
+
     static bool HayLibreOffice() => File.Exists(RutaSoffice);
 
     public OfficeDisp OfficeDisponible()
@@ -228,7 +235,7 @@ public partial class PlataformaMac
         Exception? falloMs = null;
         if (hayMs)
         {
-            try { return ConvertirConMicrosoft(archivo, ext, script, contenedor); }
+            try { return ConvertirConMicrosoft(archivo, ext, script, contenedor, app); }
             catch (TimeoutException) { throw; }
             catch (Exception ex) { falloMs = ex; if (!hayLo) throw; }
         }
@@ -236,7 +243,7 @@ public partial class PlataformaMac
         catch when (falloMs != null) { throw falloMs; } // si Office ya falló, ese es el mensaje útil
     }
 
-    static byte[] ConvertirConMicrosoft(byte[] archivo, string ext, string nombreScript, string contenedor)
+    static byte[] ConvertirConMicrosoft(byte[] archivo, string ext, string nombreScript, string contenedor, string nombreApp)
     {
         // Office para Mac está en sandbox: dentro de su contenedor no pide permiso de carpeta.
         var raizContenedor = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Containers", contenedor, "Data");
@@ -250,8 +257,17 @@ public partial class PlataformaMac
             var salida = Path.Combine(trabajo, "salida.pdf");
             File.WriteAllBytes(entrada, archivo);
             var script = ExtraerScript(nombreScript, scripts);
+            bool estabaAbierta = ProcesoActivo(nombreApp);
             var r = Ejecutar(Osascript, new[] { script, entrada, salida }, MaximoOffice);
-            if (r.TiempoAgotado) throw new TimeoutException(Textos.T("office.tardo"));
+            if (r.TiempoAgotado)
+            {
+                // Si Office no estaba abierto antes, se cierra para no dejarlo colgado detrás del usuario.
+                if (!estabaAbierta)
+                {
+                    try { Ejecutar(Osascript, new[] { "-e", "tell application id \"" + contenedor + "\" to quit saving no" }, TimeSpan.FromSeconds(15)); } catch { }
+                }
+                throw new TimeoutException(Textos.T("office.tardo"));
+            }
             if (r.Codigo != 0) throw new InvalidOperationException(Textos.T("office.noPudoAbrir", UltimaLinea(r.Error)));
             if (!File.Exists(salida)) throw new InvalidOperationException(Textos.T("office.sinPdf"));
             return File.ReadAllBytes(salida);

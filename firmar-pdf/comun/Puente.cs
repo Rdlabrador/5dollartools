@@ -42,6 +42,11 @@ public sealed class Puente
     public void Cerrar()
     {
         try { Task.Run(() => servidor.DetenerAsync()).Wait(2000); } catch { }
+        lock (temporales)
+        {
+            foreach (var t in temporales) { try { File.Delete(t); } catch { } }
+            temporales.Clear();
+        }
     }
 
     /// <summary>Recibe un mensaje de la interfaz (JSON). Llamar desde el hilo de la UI.</summary>
@@ -221,7 +226,8 @@ public sealed class Puente
         var id = msg["id"]?.DeepClone();
         var datos = Texto(msg["datos"]);
         if (string.IsNullOrEmpty(datos)) { Error(Textos.T("error.nadaGuardar"), id); return; }
-        var tipo = (Texto(msg["tipo"]) ?? "pdf").ToLowerInvariant();
+        // "formato" (no "tipo": ese campo es el nombre del mensaje)
+        var tipo = (Texto(msg["formato"]) ?? "pdf").ToLowerInvariant();
         var (filtro, ext) = tipo switch
         {
             "png" => (new FiltroArchivo(Textos.T("filtro.png"), new[] { "png" }), "png"),
@@ -582,19 +588,38 @@ public sealed class Puente
     async void Imprimir(string? datos)
     {
         if (string.IsNullOrEmpty(datos)) { Error(Textos.T("imprimir.nada")); return; }
+        string? tmp = null;
+        bool conservar = false;
         try
         {
-            var tmp = Path.Combine(Path.GetTempPath(), "FirmarPDF-" + Guid.NewGuid().ToString("N") + ".pdf");
+            tmp = Path.Combine(Path.GetTempPath(), "FirmarPDF-" + Guid.NewGuid().ToString("N") + ".pdf");
             await File.WriteAllBytesAsync(tmp, Convert.FromBase64String(datos));
             var r = await plat.ImprimirPdfAsync(tmp);
-            // Contrato: "impreso" o "error"
-            if (r == ResultadoImpresion.Abierto) Enviar(new JsonObject { ["tipo"] = "impreso" });
-            else if (r == ResultadoImpresion.Aviso) Error(Textos.T("imprimir.ctrlPVentana"));
+            // Abierto: la impresión puede seguir leyendo el archivo; Aviso: Vista Previa lo necesita. Se borran al cerrar.
+            if (r != ResultadoImpresion.Cerrado) { conservar = true; lock (temporales) temporales.Add(tmp); }
+            // Contrato: "impreso" o "error" (siempre en el hilo de la UI: tras el await puede no estar en él)
+            EnUI(() =>
+            {
+                if (r == ResultadoImpresion.Abierto) Enviar(new JsonObject { ["tipo"] = "impreso" });
+                else if (r == ResultadoImpresion.Aviso) Error(Textos.T("imprimir.ctrlPVentana"));
+            });
         }
         catch (Exception ex)
         {
-            Error(Textos.T("imprimir.preparar", ex.Message));
+            EnUI(() => Error(Textos.T("imprimir.preparar", ex.Message)));
         }
+        finally
+        {
+            if (!conservar && tmp != null) { try { File.Delete(tmp); } catch { } }
+        }
+    }
+
+    readonly List<string> temporales = new();
+
+    /// <summary>Ejecuta en el hilo de la UI; si la ventana ya se cerró, se ignora.</summary>
+    void EnUI(Action accion)
+    {
+        try { plat.EnHiloUI(accion); } catch { }
     }
 
     async Task IniciarMovilAsync(string modo = "firma")
@@ -602,11 +627,12 @@ public sealed class Puente
         try
         {
             var (url, qr) = await servidor.IniciarAsync(modo);
-            Enviar(new JsonObject { ["tipo"] = "movilQR", ["url"] = url, ["qr"] = qr });
+            EnUI(() => Enviar(new JsonObject { ["tipo"] = "movilQR", ["url"] = url, ["qr"] = qr }));
         }
         catch (Exception ex)
         {
-            Enviar(new JsonObject { ["tipo"] = "movilError", ["mensaje"] = ex.Message });
+            var mensaje = ex.Message;
+            EnUI(() => Enviar(new JsonObject { ["tipo"] = "movilError", ["mensaje"] = mensaje }));
         }
     }
 

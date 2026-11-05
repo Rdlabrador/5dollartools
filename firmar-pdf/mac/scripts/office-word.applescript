@@ -6,12 +6,15 @@ on run argv
 	set salida to item 2 of argv
 	set estabaAbierto to application "Microsoft Word" is running
 	tell application "Microsoft Word"
-		open file name entrada read only true add to recent files false
-		set d to active document
+		set d to missing value
 		try
+			open file name entrada read only true add to recent files false
+			set d to active document
 			save as d file name salida file format format PDF
 		on error m
-			close d saving no
+			try
+				if d is not missing value then close d saving no
+			end try
 			if not estabaAbierto then quit saving no
 			error m
 		end try

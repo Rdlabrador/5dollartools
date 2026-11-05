@@ -47,10 +47,13 @@ static unsafe class NativoMac
     static string textoCambios = "", btnSalir = "", btnCancelar = "", titulo = "";
 
     /// <summary>true si no hay cambios o el usuario confirma salir sin guardar.</summary>
+    static bool salidaConfirmada; // el usuario ya dijo "salir": no se vuelve a preguntar (ventana + app)
+
     static bool ConfirmarSalida()
     {
         try
         {
+            if (salidaConfirmada) return true;
             if (hayCambios == null || !hayCambios()) return true;
             var alerta = Msg(Msg(Cls("NSAlert"), Sel("alloc")), Sel("init"));
             MsgN(alerta, Sel("setAlertStyle:"), 2); // advertencia crítica
@@ -58,7 +61,7 @@ static unsafe class NativoMac
             Msg(alerta, Sel("setInformativeText:"), NSStr(textoCambios));
             Msg(alerta, Sel("addButtonWithTitle:"), NSStr(btnCancelar)); // primero = predeterminado (1000)
             Msg(alerta, Sel("addButtonWithTitle:"), NSStr(btnSalir));    // segundo (1001)
-            return MsgInt(alerta, Sel("runModal")) == 1001;
+            return salidaConfirmada = MsgInt(alerta, Sel("runModal")) == 1001;
         }
         catch { return true; }
     }

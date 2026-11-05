@@ -5,12 +5,15 @@ on run argv
 	set salida to item 2 of argv
 	set estabaAbierto to application "Microsoft PowerPoint" is running
 	tell application "Microsoft PowerPoint"
-		open entrada
-		set p to active presentation
+		set p to missing value
 		try
+			open entrada
+			set p to active presentation
 			save p in salida as save as PDF
 		on error m
-			close p saving no
+			try
+				if p is not missing value then close p saving no
+			end try
 			if not estabaAbierto then quit
 			error m
 		end try

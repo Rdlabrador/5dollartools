@@ -56,6 +56,7 @@ sealed class ServidorInterfaz : IAsyncDisposable
             }
             catch
             {
+                if (p != 0) Console.Error.WriteLine($"PepePDF: el puerto guardado {p} no está disponible; se usará otro.");
                 if (app != null) { try { await app.DisposeAsync(); } catch { } app = null; }
                 if (p == 0) throw;
             }

@@ -360,7 +360,7 @@ async function ponerContrasena() {
   let datos;
   try { progreso(t('proteger.preparando')); const bytes = await bytesActuales(); finProgreso(); datos = await protegerBytes(c1, bytes); }
   catch (e) { finProgreso(); if (!e.avisado && !e.cancelado) { console.error(e); toast(mensajeError(e), true, 6000); } return; }
-  const g = await pedir('guardarArchivo', { datos: aBase64(datos), nombre: baseNombre() + t('proteger.sufijo') + '.pdf', tipo: 'pdf' });
+  const g = await pedir('guardarArchivo', { datos: aBase64(datos), nombre: baseNombre() + t('proteger.sufijo') + '.pdf', formato: 'pdf' });
   if (g) toast(t('proteger.guardadoClave'), false, 7000);
   else toast(t('proteger.noGuardado'), false, 5000);
 }

@@ -23,6 +23,9 @@ static class Program
             return 1;
         }
 
+        // Solo para la prueba de humo del CI: muestra la URL completa (con token) para comprobar que el servidor responde.
+        if (Environment.GetEnvironmentVariable("PEPEPDF_PRUEBA") == "1") { Console.Out.WriteLine("PEPEPDF_URL=" + url); Console.Out.Flush(); }
+
         Puente? puente = null;
         var ventana = new PhotinoWindow()
             .SetTitle(Textos.T("app.nombre"))

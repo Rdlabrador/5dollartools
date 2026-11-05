@@ -591,7 +591,7 @@ const nombreGrupo = (modo, g) => {
   return `${baseNombre()}-${sufijo}.pdf`;
 };
 async function guardarPdfs(archivos) {
-  const r = await pedir('guardarArchivo', { datos: aBase64(archivos[0].datos), nombre: archivos[0].nombre, tipo: 'pdf' });
+  const r = await pedir('guardarArchivo', { datos: aBase64(archivos[0].datos), nombre: archivos[0].nombre, formato: 'pdf' });
   if (r) toast(t('paginas.guardadoEn', { ruta: r.ruta }), false, 6000);
   return !!r;
 }
@@ -863,7 +863,7 @@ export async function herrExportar() {
     const b = baseNombre();
     if (l.length === 1) {
       const [img] = await exportarImagenes(formato, dpi, l);
-      const r = await pedir('guardarArchivo', { datos: aBase64(img), nombre: `${b}-${t('paginas.sufPag')}-${l[0]}.${formato}`, tipo: formato });
+      const r = await pedir('guardarArchivo', { datos: aBase64(img), nombre: `${b}-${t('paginas.sufPag')}-${l[0]}.${formato}`, formato });
       if (r) toast(t('paginas.guardadoEn', { ruta: r.ruta }), false, 6000);
     } else await exportarACarpeta(formato, dpi, l);
   } catch (e) { aviso(e); }

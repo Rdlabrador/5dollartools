@@ -79,7 +79,7 @@ async function pruebaSinPrograma(tipo, d) {
     });
   }
   if (tipo === 'guardarArchivo') {
-    descargar(deBase64(d.datos), d.nombre || 'archivo', mimeDe(d.nombre, d.tipo));
+    descargar(deBase64(d.datos), d.nombre || 'archivo', mimeDe(d.nombre, d.formato));
     return { tipo: 'guardado', ruta: d.nombre || 'archivo' };
   }
   if (tipo === 'guardarVarios') {

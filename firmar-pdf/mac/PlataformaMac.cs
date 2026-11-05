@@ -25,7 +25,7 @@ public partial class PlataformaMac : IPlataforma
 
     public string CarpetaPredeterminada => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Documents");
 
-    public void EnviarJson(string json) => ventana.SendWebMessage(json);
+    public void EnviarJson(string json) => ventana.Invoke(() => ventana.SendWebMessage(json)); // siempre en el hilo principal
 
     public void EnHiloUI(Action accion) => ventana.Invoke(accion);
 
@@ -44,7 +44,18 @@ public partial class PlataformaMac : IPlataforma
         string? ruta;
         var (ok, nativo) = NativoMac.GuardarComo(titulo, nombreSugerido, extension, carpetaInicial);
         if (ok) ruta = nativo;
-        else ruta = ventana.ShowSaveFile(titulo, CarpetaValida(carpetaInicial), Filtros(filtro)); // plan B si falla el diálogo nativo
+        else
+        {
+            // Plan B si falla el diálogo nativo: si al agregar la extensión el archivo ya existe, el diálogo no avisó; se vuelve a preguntar.
+            while (true)
+            {
+                ruta = ventana.ShowSaveFile(titulo, CarpetaValida(carpetaInicial), Filtros(filtro));
+                if (string.IsNullOrEmpty(ruta)) return null;
+                if (ruta.EndsWith("." + extension, StringComparison.OrdinalIgnoreCase)) break;
+                ruta += "." + extension;
+                if (!File.Exists(ruta)) break;
+            }
+        }
         if (string.IsNullOrEmpty(ruta)) return null;
         if (!ruta.EndsWith("." + extension, StringComparison.OrdinalIgnoreCase)) ruta += "." + extension;
         return ruta;

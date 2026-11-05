@@ -98,18 +98,29 @@ jobs:
           mkdir -p "$RUNNER_TEMP/app"
           cp -R /Volumes/PepePDF/PepePDF.app "$RUNNER_TEMP/app/"
           hdiutil detach /Volumes/PepePDF -quiet
-          "$RUNNER_TEMP/app/PepePDF.app/Contents/MacOS/PepePDF" "$PWD/prueba/ejemplo.pdf" \
+          PEPEPDF_PRUEBA=1 "$RUNNER_TEMP/app/PepePDF.app/Contents/MacOS/PepePDF" "$PWD/prueba/ejemplo.pdf" \
             > prueba/app.log 2>&1 &
           echo $! > prueba/app.pid
           sleep 20
           screencapture -x prueba/captura.png || echo "No se pudo capturar la pantalla"
           if kill -0 "$(cat prueba/app.pid)" 2>/dev/null; then
             echo "La app sigue viva tras 20 s"
-            kill "$(cat prueba/app.pid)" || true
           else
             echo "La app se cerró sola. Registro:"; cat prueba/app.log
             exit 1
           fi
+          # El servidor de la interfaz debe responder: puerto guardado y, con la URL con token, index.html = 200
+          PUERTO="$(cat "$HOME/Library/Application Support/PepePDF/puerto-interfaz.txt" 2>/dev/null || true)"
+          [ -n "$PUERTO" ] || { echo "No existe puerto-interfaz.txt"; kill "$(cat prueba/app.pid)" || true; exit 1; }
+          CODIGO="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "http://127.0.0.1:$PUERTO/" || true)"
+          echo "GET / en el puerto $PUERTO -> HTTP $CODIGO"
+          URL="$(grep -m1 '^PEPEPDF_URL=' prueba/app.log | cut -d= -f2-)"
+          [ -n "$URL" ] || { echo "La app no escribió la URL de prueba"; kill "$(cat prueba/app.pid)" || true; exit 1; }
+          CODIGO_INDEX="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" || true)"
+          echo "GET index.html -> HTTP $CODIGO_INDEX"
+          kill "$(cat prueba/app.pid)" || true
+          [ "$CODIGO" != "000" ] || { echo "El servidor no responde"; exit 1; }
+          [ "$CODIGO_INDEX" = "200" ] || { echo "index.html no devolvió 200"; exit 1; }
 
       - name: Subir captura y registro
         if: always()
